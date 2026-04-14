@@ -1,5 +1,5 @@
-// Type definitions for Blueprint Generator
-// This file MUST export BlueprintSpec and Room
+// Blueprint Generator Type Definitions
+// This file exports all types needed for the application
 
 export type RoomType =
   | 'living'
@@ -38,22 +38,29 @@ export interface Room {
 }
 
 export interface BlueprintSpec {
-  buildingType: 'house' | 'shop' | 'office' | 'restaurant';
+  buildingType: 'house' | 'shop' | 'office' | 'restaurant' | 'bungalow' | 'duplex' | 'apartment' | 'villa' | 'townhouse' | 'mansion';
   country: string;
   totalArea: number;
   dimensions: { width: number; depth: number };
   rooms: Room[];
-  layout: 'linear' | 'central' | 'clustered' | 'open';
+  layout: 'linear' | 'central' | 'clustered' | 'open' | 'split' | 'compact' | 'spacious' | 'vertical' | 'estate';
   unit: 'feet' | 'meters';
   createdAt: string;
 }
 
 export interface UserInput {
-  buildingType: 'house' | 'shop' | 'office' | 'restaurant';
+  buildingType: 'house' | 'shop' | 'office' | 'restaurant' | 'bungalow' | 'duplex' | 'apartment' | 'villa' | 'townhouse' | 'mansion';
   country: string;
   professionalMode: boolean;
   customDimensions?: Record<string, { width: number; depth: number }>;
+  roomCount?: {
+    bedrooms: number;
+    bathrooms: number;
+    living: number;
+    kitchen: number;
+    office: number;
+  };
 }
 
-// Explicitly export everything
-export type { BlueprintSpec as BlueprintSpecType, Room as RoomType };
+// Default export for easier importing
+export default { BlueprintSpec, Room, UserInput, RoomType };
