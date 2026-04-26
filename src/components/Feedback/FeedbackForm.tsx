@@ -1,6 +1,39 @@
 import { useState } from 'react';
 import { MessageSquare, Star, Send } from 'lucide-react';
 
+// Extended country list for feedback form
+const countryOptions = [
+  'United States', 'Nigeria', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France',
+  'India', 'China', 'Japan', 'Brazil', 'Mexico', 'South Africa', 'Kenya', 'Ghana',
+  'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'Libya', 'Sudan', 'Ethiopia', 'Somalia',
+  'Saudi Arabia', 'UAE', 'Qatar', 'Kuwait', 'Bahrain', 'Oman', 'Jordan', 'Lebanon',
+  'Israel', 'Palestine', 'Turkey', 'Iran', 'Iraq', 'Syria', 'Yemen', 'Afghanistan',
+  'Pakistan', 'Bangladesh', 'Sri Lanka', 'Nepal', 'Bhutan', 'Myanmar', 'Thailand',
+  'Vietnam', 'Laos', 'Cambodia', 'Malaysia', 'Singapore', 'Indonesia', 'Philippines',
+  'South Korea', 'North Korea', 'Mongolia', 'Taiwan', 'Hong Kong', 'Macau',
+  'Russia', 'Ukraine', 'Poland', 'Czech Republic', 'Slovakia', 'Hungary', 'Romania',
+  'Bulgaria', 'Serbia', 'Croatia', 'Bosnia', 'Slovenia', 'Albania', 'North Macedonia',
+  'Greece', 'Cyprus', 'Malta', 'Italy', 'Spain', 'Portugal', 'Andorra', 'Monaco',
+  'Switzerland', 'Austria', 'Belgium', 'Netherlands', 'Luxembourg', 'Ireland', 'Iceland',
+  'Denmark', 'Sweden', 'Norway', 'Finland', 'Estonia', 'Latvia', 'Lithuania', 'Belarus',
+  'Moldova', 'Georgia', 'Armenia', 'Azerbaijan', 'Kazakhstan', 'Uzbekistan', 'Turkmenistan',
+  'Kyrgyzstan', 'Tajikistan', 'Mongolia', 'Australia', 'New Zealand', 'Papua New Guinea',
+  'Fiji', 'Samoa', 'Tonga', 'Vanuatu', 'Solomon Islands', 'Mauritius', 'Seychelles',
+  'Maldives', 'Indonesia', 'Timor-Leste', 'Brunei', 'Myanmar', 'Laos', 'Cambodia',
+  'Argentina', 'Bolivia', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Guyana', 'Paraguay',
+  'Peru', 'Suriname', 'Uruguay', 'Venezuela', 'French Guiana', 'Falkland Islands',
+  'Bahamas', 'Barbados', 'Belize', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic',
+  'El Salvador', 'Grenada', 'Guatemala', 'Haiti', 'Honduras', 'Jamaica', 'Nicaragua',
+  'Panama', 'Puerto Rico', 'Saint Kitts', 'Saint Lucia', 'Saint Vincent', 'Trinidad',
+  'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cameroon',
+  'Central African Republic', 'Chad', 'Comoros', 'Congo', 'Djibouti', 'Equatorial Guinea',
+  'Eritrea', 'Eswatini', 'Gabon', 'Gambia', 'Guinea', 'Guinea-Bissau', 'Ivory Coast',
+  'Lesotho', 'Liberia', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius',
+  'Mozambique', 'Namibia', 'Niger', 'Rwanda', 'Sao Tome', 'Senegal', 'Seychelles',
+  'Sierra Leone', 'Somalia', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia',
+  'Uganda', 'Zambia', 'Zimbabwe'
+].sort();
+
 export const FeedbackForm = () => {
   const [formData, setFormData] = useState({
     name: '',
@@ -17,7 +50,6 @@ export const FeedbackForm = () => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // FormSubmit.co endpoint
     const formEndpoint = 'https://formsubmit.co/ajax/fawaznuhu93@gmail.com';
     
     try {
@@ -128,13 +160,9 @@ export const FeedbackForm = () => {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select country</option>
-                <option value="US">United States</option>
-                <option value="NG">Nigeria</option>
-                <option value="IN">India</option>
-                <option value="HK">Hong Kong</option>
-                <option value="AE">UAE</option>
-                <option value="IE">Ireland</option>
-                <option value="GB">United Kingdom</option>
+                {countryOptions.map(country => (
+                  <option key={country} value={country}>{country}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -147,7 +175,7 @@ export const FeedbackForm = () => {
                   key={star}
                   type="button"
                   onClick={() => setFormData({ ...formData, rating: star })}
-                  className="focus:outline-none"
+                  className="focus:outline-none transition-transform hover:scale-110"
                 >
                   <Star
                     className={`w-8 h-8 ${

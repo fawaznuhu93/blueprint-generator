@@ -1,7 +1,41 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Download, Printer, Copy, ZoomIn, ZoomOut, Maximize2, Minus, Plus, Home, Building, MapPin, Ruler, Layers, Grid } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Download, Printer, Expand, Copy, Ruler, Info, ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react';
+import { exportBlueprintAsPDF } from './BlueprintExporter';
+import { trackExport } from '../../utils/analytics';
 
-// Types (keep as you have them)
+type RoomType = 'living' | 'kitchen' | 'bedroom' | 'bathroom' | 'office' | 'storage' | 'dining' | 'hallway' | 'storefront' | 'reception' | 'workspace' | 'meeting' | 'break';
+
+interface Room {
+  id: string;
+  name: string;
+  type: RoomType;
+  width: number;
+  depth: number;
+  area: number;
+  position: { x: number; y: number };
+  color: string;
+  doors: Array<{
+    wall: 'north' | 'south' | 'east' | 'west';
+    position: number;
+    width: number;
+  }>;
+  windows: Array<{
+    wall: 'north' | 'south' | 'east' | 'west';
+    position: number;
+    width: number;
+  }>;
+}
+
+interface BlueprintSpec {
+  buildingType: string;
+  country: string;
+  totalArea: number;
+  dimensions: { width: number; depth: number };
+  rooms: Room[];
+  layout: string;
+  unit: 'feet' | 'meters';
+  createdAt: string;
+}
 
 interface BlueprintViewerProps {
   blueprint: BlueprintSpec;
@@ -11,796 +45,547 @@ interface BlueprintViewerProps {
 export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.8); // Start with smaller scale
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
-
-  // Calculate optimal canvas size based on building dimensions
-  const calculateOptimalCanvasSize = useCallback(() => {
-    if (!blueprint?.rooms?.length) return { width: 1000, height: 800 };
-    
-    let maxX = 0, maxY = 0;
-    const gridSize = blueprint.unit === 'feet' ? 12 : 4; // Smaller grid for better fit
-    
-    blueprint.rooms.forEach(room => {
-      const x = room.position.x * gridSize + 40;
-      const y = room.position.y * gridSize + 40;
-      const right = x + room.width * gridSize;
-      const bottom = y + room.depth * gridSize;
-      
-      maxX = Math.max(maxX, right);
-      maxY = Math.max(maxY, bottom);
-    });
-    
-    // Add margins for annotations, dimensions, etc.
-    return {
-      width: Math.min(maxX + 100, 1400), // Cap at 1400px
-      height: Math.min(maxY + 100, 1000) // Cap at 1000px
-    };
-  }, [blueprint]);
+  const [scale, setScale] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
-    if (canvasRef.current && blueprint?.rooms?.length > 0) {
-      const canvas = canvasRef.current;
-      const optimalSize = calculateOptimalCanvasSize();
-      
-      // Set canvas size
-      canvas.width = optimalSize.width;
-      canvas.height = optimalSize.height;
-      
-      drawProfessionalBlueprint(canvas, blueprint, scale, panOffset);
+    if (canvasRef.current && blueprint?.rooms && blueprint.rooms.length > 0) {
+      drawProfessionalBlueprint(canvasRef.current, blueprint, scale);
     }
-  }, [blueprint, scale, panOffset, calculateOptimalCanvasSize]);
+  }, [blueprint, scale]);
 
-  // Panning functionality
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsPanning(true);
-    setLastMousePos({ x: e.clientX, y: e.clientY });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isPanning) return;
-    
-    const deltaX = e.clientX - lastMousePos.x;
-    const deltaY = e.clientY - lastMousePos.y;
-    
-    setPanOffset(prev => ({
-      x: prev.x + deltaX,
-      y: prev.y + deltaY
-    }));
-    
-    setLastMousePos({ x: e.clientX, y: e.clientY });
-  };
-
-  const handleMouseUp = () => {
-    setIsPanning(false);
-  };
-
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const zoomFactor = 0.1;
-    const newScale = e.deltaY < 0 
-      ? Math.min(scale + zoomFactor, 2.5) 
-      : Math.max(scale - zoomFactor, 0.3);
-    setScale(newScale);
-  };
-
-  const resetView = () => {
-    setScale(0.8);
-    setPanOffset({ x: 0, y: 0 });
-  };
-
-  const drawProfessionalBlueprint = (canvas: HTMLCanvasElement, spec: BlueprintSpec, scale: number = 0.8, offset: { x: number, y: number }) => {
+  const drawProfessionalBlueprint = (canvas: HTMLCanvasElement, spec: BlueprintSpec, scaleValue: number = 1) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear with professional blueprint background
-    ctx.fillStyle = '#f8fafc';
+    // Set canvas dimensions for professional print (Arch D size proportion)
+    canvas.width = 1200;
+    canvas.height = 900;
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw blueprint background color (classic blue)
+    ctx.fillStyle = '#1a3a5c';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Apply scale and offset
-    ctx.save();
-    ctx.translate(offset.x, offset.y);
-    ctx.scale(scale, scale);
-
-    // Draw architectural grid (subtle)
-    drawArchitecturalGrid(ctx, canvas.width / scale, canvas.height / scale, spec.unit);
+    // Draw blueprint grid
+    drawBlueprintGrid(ctx, canvas.width, canvas.height);
     
-    // Calculate building bounds for centering
-    const buildingBounds = calculateBuildingBounds(spec.rooms, spec.unit);
-    const centerX = (canvas.width / scale - buildingBounds.width) / 2 - buildingBounds.minX;
-    const centerY = (canvas.height / scale - buildingBounds.height) / 2 - buildingBounds.minY;
+    // Safety check
+    if (!spec.rooms || spec.rooms.length === 0) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('No rooms to display. Generate a blueprint first.', canvas.width / 2, canvas.height / 2);
+      return;
+    }
     
-    ctx.translate(centerX, centerY);
+    const gridSize = spec.unit === 'feet' ? 20 : 6;
+    const padding = 80;
+    const margin = 100;
     
-    // Draw building outline with foundation line
-    drawBuildingOutline(ctx, spec, buildingBounds);
-    
-    // Draw each room with professional details
-    spec.rooms.forEach(room => {
-      drawArchitecturalRoom(ctx, room, spec.unit);
-    });
-    
-    // Draw dimensions (aligned to grid)
-    drawArchitecturalDimensions(ctx, spec.rooms, spec.unit);
-    
-    // Draw annotations last (on top)
-    drawAnnotations(ctx, canvas.width / scale, canvas.height / scale, spec);
-    
-    ctx.restore();
-  };
-
-  const calculateBuildingBounds = (rooms: Room[], unit: string) => {
-    const gridSize = unit === 'feet' ? 12 : 4;
+    // Find bounds
     let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
     
-    rooms.forEach(room => {
-      const x = room.position.x * gridSize;
-      const y = room.position.y * gridSize;
-      const right = x + room.width * gridSize;
-      const bottom = y + room.depth * gridSize;
-      
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, right);
-      maxY = Math.max(maxY, bottom);
+    spec.rooms.forEach(room => {
+      if (room.position) {
+        const x = room.position.x * gridSize;
+        const y = room.position.y * gridSize;
+        const right = x + room.width * gridSize;
+        const bottom = y + room.depth * gridSize;
+        
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, right);
+        maxY = Math.max(maxY, bottom);
+      }
     });
     
-    // Add margins
-    minX -= 20;
-    minY -= 20;
-    maxX += 20;
-    maxY += 20;
+    const totalWidth = maxX - minX;
+    const totalHeight = maxY - minY;
+    const availableWidth = canvas.width - margin * 2;
+    const availableHeight = canvas.height - margin * 2 - 120;
     
-    return {
-      minX, minY, maxX, maxY,
-      width: maxX - minX,
-      height: maxY - minY
-    };
+    const fitScale = Math.min(availableWidth / totalWidth, availableHeight / totalHeight);
+    const finalScale = fitScale * scaleValue;
+    
+    // Draw title block
+    drawTitleBlock(ctx, canvas.width, canvas.height, spec);
+    
+    // Draw north arrow
+    drawNorthArrow(ctx, canvas.width - 80, margin - 20);
+    
+    // Draw scale bar
+    drawScaleBar(ctx, canvas.width - 200, canvas.height - 60, spec.unit);
+    
+    // Draw each room
+    spec.rooms.forEach(room => {
+      if (room.position) {
+        const x = (room.position.x * gridSize - minX) * finalScale + margin;
+        const y = (room.position.y * gridSize - minY) * finalScale + margin;
+        const width = room.width * gridSize * finalScale;
+        const depth = room.depth * gridSize * finalScale;
+        
+        drawRoom(ctx, room, x, y, width, depth, spec.unit, finalScale);
+      }
+    });
+    
+    // Draw overall dimensions
+    drawOverallDimensions(ctx, spec, minX, minY, maxX, maxY, finalScale, margin, gridSize);
+    
+    // Draw legend
+    drawLegend(ctx, margin, canvas.height - 80);
   };
 
-  const drawArchitecturalGrid = (ctx: CanvasRenderingContext2D, width: number, height: number, unit: string) => {
-    const gridSize = unit === 'feet' ? 48 : 14.4; // 4ft/1.2m grid in pixels
-    const minorGridSize = gridSize / 4; // 1ft/0.3m grid
-    
-    // Minor grid (very light)
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 0.3;
-    
-    for (let x = 0; x <= width; x += minorGridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-      ctx.stroke();
-    }
-    
-    for (let y = 0; y <= height; y += minorGridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-      ctx.stroke();
-    }
-    
-    // Major grid (4ft/1.2m)
-    ctx.strokeStyle = '#cbd5e1';
+  const drawBlueprintGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    // Major grid lines (every 40px)
+    ctx.strokeStyle = '#2a5a8c';
     ctx.lineWidth = 0.5;
     
-    for (let x = 0; x <= width; x += gridSize) {
+    for (let x = 0; x <= width; x += 40) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, height);
       ctx.stroke();
     }
     
-    for (let y = 0; y <= height; y += gridSize) {
+    for (let y = 0; y <= height; y += 40) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(width, y);
       ctx.stroke();
     }
     
-    // Grid labels every 8ft/2.4m
-    if (unit === 'feet') {
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '9px "Courier New", monospace';
-      ctx.textAlign = 'center';
-      
-      for (let x = gridSize * 2; x < width; x += gridSize * 2) {
-        ctx.fillText(`${(x / gridSize * 4).toFixed(0)}'`, x, 15);
-      }
-      
-      for (let y = gridSize * 2; y < height; y += gridSize * 2) {
-        ctx.save();
-        ctx.translate(15, y);
-        ctx.rotate(-Math.PI / 2);
-        ctx.fillText(`${(y / gridSize * 4).toFixed(0)}'`, 0, 0);
-        ctx.restore();
-      }
+    // Minor grid lines (every 10px)
+    ctx.strokeStyle = '#1a4a7c';
+    ctx.lineWidth = 0.3;
+    
+    for (let x = 0; x <= width; x += 10) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    
+    for (let y = 0; y <= height; y += 10) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
     }
   };
 
-  const drawBuildingOutline = (ctx: CanvasRenderingContext2D, spec: BlueprintSpec, bounds: any) => {
-    const gridSize = spec.unit === 'feet' ? 12 : 4;
+  const drawRoom = (ctx: CanvasRenderingContext2D, room: Room, x: number, y: number, width: number, depth: number, unit: string, scale: number) => {
+    if (!room) return;
     
-    // Foundation line (dashed, outside)
-    ctx.strokeStyle = '#64748b';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([5, 3]);
-    ctx.strokeRect(
-      bounds.minX - 5,
-      bounds.minY - 5,
-      bounds.width + 10,
-      bounds.height + 10
-    );
-    ctx.setLineDash([]);
-    
-    // Exterior walls (thick)
-    ctx.strokeStyle = '#1e293b';
+    // Draw exterior walls (thicker)
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 3;
-    ctx.strokeRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
-    
-    // Wall hatch pattern
-    ctx.strokeStyle = '#475569';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([2, 4]);
-    ctx.strokeRect(bounds.minX + 1.5, bounds.minY + 1.5, bounds.width - 3, bounds.height - 3);
     ctx.setLineDash([]);
+    ctx.strokeRect(x, y, width, depth);
     
-    // Draw north arrow (professional)
-    drawNorthArrow(ctx, bounds.minX + 30, bounds.minY + 30);
-    
-    // Building label
-    ctx.fillStyle = '#1e293b';
-    ctx.font = 'bold 14px "Arial Narrow", sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(
-      `${spec.buildingType.toUpperCase()} PLAN - ${spec.country}`,
-      bounds.minX + 50,
-      bounds.minY - 10
-    );
-    
-    // Scale notation
-    ctx.font = '10px "Courier New", monospace';
-    ctx.fillText(
-      `SCALE: 1:100 (1/8" = 1'-0")`,
-      bounds.maxX - 150,
-      bounds.minY - 10
-    );
-  };
-
-  const drawArchitecturalRoom = (ctx: CanvasRenderingContext2D, room: Room, unit: string) => {
-    const gridSize = unit === 'feet' ? 12 : 4;
-    
-    const x = room.position.x * gridSize;
-    const y = room.position.y * gridSize;
-    const width = room.width * gridSize;
-    const depth = room.depth * gridSize;
-    
-    // Room fill with subtle pattern based on type
-    ctx.fillStyle = getRoomFillStyle(room.type);
-    ctx.fillRect(x, y, width, depth);
-    
-    // Interior walls (medium weight)
-    ctx.strokeStyle = '#475569';
+    // Draw interior walls (thinner)
+    ctx.strokeStyle = '#c0c0c0';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(x, y, width, depth);
     
-    // Wall center line (optional, for studs)
-    ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 0.5;
-    ctx.setLineDash([3, 3]);
-    ctx.strokeRect(x + 0.75, y + 0.75, width - 1.5, depth - 1.5);
-    ctx.setLineDash([]);
+    // Draw room label
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${Math.max(10, Math.min(16, width / 12))}px "Courier New", monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      room.name?.toUpperCase() || 'ROOM',
+      x + width / 2,
+      y + depth / 2 - 8
+    );
     
-    // Draw doors with swing
-    room.doors.forEach(door => {
-      drawArchitecturalDoor(ctx, x, y, width, depth, door, gridSize);
-    });
+    // Draw dimensions
+    ctx.font = `${Math.max(8, Math.min(12, width / 18))}px "Courier New", monospace`;
+    ctx.fillStyle = '#a0c0e0';
+    ctx.fillText(
+      `${room.width}' x ${room.depth}'`,
+      x + width / 2,
+      y + depth / 2 + 10
+    );
     
-    // Draw windows with glass indication
-    room.windows.forEach(window => {
-      drawArchitecturalWindow(ctx, x, y, width, depth, window, gridSize);
-    });
+    // Draw area
+    ctx.fillText(
+      `${room.area} SF`,
+      x + width / 2,
+      y + depth / 2 + 25
+    );
     
-    // Room label box
-    drawRoomLabel(ctx, x, y, width, depth, room, unit);
+    // Draw doors
+    if (room.doors && room.doors.length > 0) {
+      room.doors.forEach(door => {
+        drawDoorSymbol(ctx, x, y, width, depth, door);
+      });
+    } else {
+      // Add default door on south wall
+      drawDoorSymbol(ctx, x, y, width, depth, { wall: 'south', position: 0.5, width: 3 });
+    }
+    
+    // Draw windows
+    if (room.windows && room.windows.length > 0) {
+      room.windows.forEach(window => {
+        drawWindowSymbol(ctx, x, y, width, depth, window);
+      });
+    }
   };
 
-  const getRoomFillStyle = (type: RoomType): string => {
-    const styles: Record<RoomType, string> = {
-      'living': 'rgba(254, 240, 138, 0.15)', // Light yellow
-      'kitchen': 'rgba(187, 247, 208, 0.15)', // Light green
-      'bedroom': 'rgba(219, 234, 254, 0.15)', // Light blue
-      'bathroom': 'rgba(221, 214, 254, 0.15)', // Light purple
-      'office': 'rgba(254, 226, 226, 0.15)', // Light red
-      'storage': 'rgba(229, 231, 235, 0.15)', // Light gray
-      'dining': 'rgba(254, 240, 138, 0.1)', // Very light yellow
-      'hallway': 'rgba(241, 245, 249, 0.2)', // Very light gray
-      'storefront': 'rgba(254, 215, 170, 0.15)', // Light orange
-      'reception': 'rgba(186, 230, 253, 0.15)', // Light cyan
-      'workspace': 'rgba(220, 252, 231, 0.1)', // Very light green
-      'meeting': 'rgba(233, 213, 255, 0.1)', // Very light purple
-      'break': 'rgba(254, 202, 202, 0.1)' // Very light pink
-    };
-    return styles[type] || 'rgba(241, 245, 249, 0.1)';
-  };
-
-  const drawArchitecturalDoor = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, depth: number, door: any, gridSize: number) => {
-    const doorWidth = door.width * gridSize;
-    const doorPosition = door.position;
+  const drawDoorSymbol = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, depth: number, door: any) => {
+    ctx.strokeStyle = '#e0a040';
+    ctx.lineWidth = 2;
+    ctx.fillStyle = '#e0a040';
     
-    ctx.strokeStyle = '#92400e';
-    ctx.lineWidth = 1.5;
-    ctx.fillStyle = '#92400e';
-    
-    let doorX, doorY, swingStart, swingEnd;
+    const doorWidth = 15; // pixels
+    const doorSwingRadius = 20;
     
     switch(door.wall) {
-      case 'north':
-        doorX = x + width * doorPosition;
-        doorY = y;
-        swingStart = Math.PI;
-        swingEnd = Math.PI * 1.5;
-        // Door line
+      case 'south':
+        const doorX = x + width * door.position;
+        const doorY = y + depth;
+        // Draw door rectangle
+        ctx.fillRect(doorX - 3, doorY - 3, 6, 6);
+        // Draw door swing arc
+        ctx.beginPath();
+        ctx.arc(doorX, doorY, doorSwingRadius, 0, Math.PI / 2);
+        ctx.stroke();
+        // Draw door line
         ctx.beginPath();
         ctx.moveTo(doorX, doorY);
-        ctx.lineTo(doorX, doorY + doorWidth);
-        ctx.stroke();
-        // Swing arc
-        ctx.beginPath();
-        ctx.arc(doorX, doorY, doorWidth, swingStart, swingEnd);
+        ctx.lineTo(doorX + doorSwingRadius, doorY);
         ctx.stroke();
         break;
         
-      case 'south':
-        doorX = x + width * doorPosition;
-        doorY = y + depth;
-        swingStart = 0;
-        swingEnd = Math.PI * 0.5;
+      case 'north':
+        const doorXN = x + width * door.position;
+        const doorYN = y;
+        ctx.fillRect(doorXN - 3, doorYN - 3, 6, 6);
         ctx.beginPath();
-        ctx.moveTo(doorX, doorY);
-        ctx.lineTo(doorX, doorY - doorWidth);
+        ctx.arc(doorXN, doorYN, doorSwingRadius, Math.PI, Math.PI * 1.5);
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(doorX, doorY, doorWidth, swingStart, swingEnd);
+        ctx.moveTo(doorXN, doorYN);
+        ctx.lineTo(doorXN - doorSwingRadius, doorYN);
         ctx.stroke();
         break;
         
       case 'east':
-        doorX = x + width;
-        doorY = y + depth * doorPosition;
-        swingStart = Math.PI * 0.5;
-        swingEnd = Math.PI;
+        const doorXE = x + width;
+        const doorYE = y + depth * door.position;
+        ctx.fillRect(doorXE - 3, doorYE - 3, 6, 6);
         ctx.beginPath();
-        ctx.moveTo(doorX, doorY);
-        ctx.lineTo(doorX - doorWidth, doorY);
+        ctx.arc(doorXE, doorYE, doorSwingRadius, -Math.PI / 2, 0);
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(doorX, doorY, doorWidth, swingStart, swingEnd);
+        ctx.moveTo(doorXE, doorYE);
+        ctx.lineTo(doorXE, doorYE - doorSwingRadius);
         ctx.stroke();
         break;
         
       case 'west':
-        doorX = x;
-        doorY = y + depth * doorPosition;
-        swingStart = Math.PI * 1.5;
-        swingEnd = Math.PI * 2;
+        const doorXW = x;
+        const doorYW = y + depth * door.position;
+        ctx.fillRect(doorXW - 3, doorYW - 3, 6, 6);
         ctx.beginPath();
-        ctx.moveTo(doorX, doorY);
-        ctx.lineTo(doorX + doorWidth, doorY);
+        ctx.arc(doorXW, doorYW, doorSwingRadius, Math.PI / 2, Math.PI);
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(doorX, doorY, doorWidth, swingStart, swingEnd);
+        ctx.moveTo(doorXW, doorYW);
+        ctx.lineTo(doorXW, doorYW + doorSwingRadius);
         ctx.stroke();
         break;
     }
-    
-    // Door knob
-    const knobRadius = 0.8;
-    ctx.beginPath();
-    ctx.arc(doorX, doorY, knobRadius, 0, Math.PI * 2);
-    ctx.fill();
   };
 
-  const drawArchitecturalWindow = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, depth: number, window: any, gridSize: number) => {
-    const windowWidth = window.width * gridSize;
-    const windowCenter = window.position;
+  const drawWindowSymbol = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, depth: number, window: any) => {
+    ctx.strokeStyle = '#60a0e0';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
     
-    ctx.strokeStyle = '#0ea5e9';
-    ctx.lineWidth = 1;
-    ctx.fillStyle = 'rgba(14, 165, 233, 0.1)';
-    
-    let startX, startY, endX, endY;
+    const windowWidth = 30;
     
     switch(window.wall) {
       case 'north':
-        startX = x + width * windowCenter - windowWidth / 2;
-        startY = y;
-        endX = startX + windowWidth;
-        endY = y;
+        const winX = x + width * window.position;
+        const winY = y;
+        ctx.beginPath();
+        ctx.moveTo(winX - windowWidth / 2, winY);
+        ctx.lineTo(winX + windowWidth / 2, winY);
+        ctx.stroke();
         break;
         
       case 'south':
-        startX = x + width * windowCenter - windowWidth / 2;
-        startY = y + depth;
-        endX = startX + windowWidth;
-        endY = y + depth;
+        const winXS = x + width * window.position;
+        const winYS = y + depth;
+        ctx.beginPath();
+        ctx.moveTo(winXS - windowWidth / 2, winYS);
+        ctx.lineTo(winXS + windowWidth / 2, winYS);
+        ctx.stroke();
         break;
         
       case 'east':
-        startX = x + width;
-        startY = y + depth * windowCenter - windowWidth / 2;
-        endX = x + width;
-        endY = startY + windowWidth;
+        const winXE = x + width;
+        const winYE = y + depth * window.position;
+        ctx.beginPath();
+        ctx.moveTo(winXE, winYE - windowWidth / 2);
+        ctx.lineTo(winXE, winYE + windowWidth / 2);
+        ctx.stroke();
         break;
         
       case 'west':
-        startX = x;
-        startY = y + depth * windowCenter - windowWidth / 2;
-        endX = x;
-        endY = startY + windowWidth;
+        const winXW = x;
+        const winYW = y + depth * window.position;
+        ctx.beginPath();
+        ctx.moveTo(winXW, winYW - windowWidth / 2);
+        ctx.lineTo(winXW, winYW + windowWidth / 2);
+        ctx.stroke();
         break;
     }
     
-    // Window glass area
-    ctx.fillRect(startX, startY, endX - startX, endY - startY);
-    
-    // Window frame
-    ctx.strokeRect(startX, startY, endX - startX, endY - startY);
-    
-    // Window mullions (dividers)
-    ctx.beginPath();
-    ctx.moveTo((startX + endX) / 2, startY);
-    ctx.lineTo((startX + endX) / 2, endY);
-    ctx.stroke();
-    
-    ctx.beginPath();
-    ctx.moveTo(startX, (startY + endY) / 2);
-    ctx.lineTo(endX, (startY + endY) / 2);
-    ctx.stroke();
+    ctx.setLineDash([]);
   };
 
-  const drawRoomLabel = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, depth: number, room: Room, unit: string) => {
-    const centerX = x + width / 2;
-    const centerY = y + depth / 2;
+  const drawOverallDimensions = (ctx: CanvasRenderingContext2D, spec: BlueprintSpec, minX: number, minY: number, maxX: number, maxY: number, scale: number, margin: number, gridSize: number) => {
+    if (minX === Infinity) return;
     
-    // Label background
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    const labelWidth = Math.min(width * 0.8, 120);
-    const labelHeight = 36;
-    ctx.fillRect(
-      centerX - labelWidth / 2,
-      centerY - labelHeight / 2,
-      labelWidth,
-      labelHeight
+    const buildingWidth = ((maxX - minX) / gridSize);
+    const buildingDepth = ((maxY - minY) / gridSize);
+    
+    const leftX = margin;
+    const rightX = (maxX - minX) * scale + margin;
+    const topY = margin;
+    const bottomY = (maxY - minY) * scale + margin;
+    
+    ctx.strokeStyle = '#80c0e0';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#80c0e0';
+    ctx.font = '10px "Courier New", monospace';
+    ctx.setLineDash([5, 5]);
+    
+    // Top dimension
+    ctx.beginPath();
+    ctx.moveTo(leftX, topY - 20);
+    ctx.lineTo(rightX, topY - 20);
+    ctx.stroke();
+    ctx.fillText(
+      `${buildingWidth.toFixed(1)}'`,
+      (leftX + rightX) / 2,
+      topY - 25
     );
     
-    // Label border
-    ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(
-      centerX - labelWidth / 2,
-      centerY - labelHeight / 2,
-      labelWidth,
-      labelHeight
-    );
-    
-    // Room name
-    ctx.fillStyle = '#1e293b';
-    ctx.font = 'bold 10px "Arial Narrow", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(room.name.toUpperCase(), centerX, centerY - 6);
-    
-    // Dimensions
-    ctx.font = '9px "Courier New", monospace';
-    ctx.fillStyle = '#64748b';
-    ctx.fillText(`${room.width}' × ${room.depth}'`, centerX, centerY + 4);
-    
-    // Area
-    ctx.fillText(`${room.area} SF`, centerX, centerY + 16);
-  };
-
-  const drawArchitecturalDimensions = (ctx: CanvasRenderingContext2D, rooms: Room[], unit: string) => {
-    const gridSize = unit === 'feet' ? 12 : 4;
-    
-    ctx.strokeStyle = '#059669';
-    ctx.lineWidth = 0.8;
-    ctx.fillStyle = '#059669';
-    ctx.font = '8px "Courier New", monospace';
-    
-    // For each room, draw dimensions
-    rooms.forEach(room => {
-      const x = room.position.x * gridSize;
-      const y = room.position.y * gridSize;
-      const width = room.width * gridSize;
-      const depth = room.depth * gridSize;
-      
-      // Width dimension (bottom)
-      const dimY = y + depth + 15;
-      ctx.beginPath();
-      ctx.moveTo(x, dimY);
-      ctx.lineTo(x + width, dimY);
-      // Extension lines
-      ctx.moveTo(x, y + depth);
-      ctx.lineTo(x, dimY);
-      ctx.moveTo(x + width, y + depth);
-      ctx.lineTo(x + width, dimY);
-      // Arrowheads
-      drawArrowhead(ctx, x, dimY, Math.PI / 2);
-      drawArrowhead(ctx, x + width, dimY, -Math.PI / 2);
-      ctx.stroke();
-      
-      // Dimension text
-      ctx.fillText(`${room.width}'`, x + width / 2, dimY + 10);
-      
-      // Depth dimension (left)
-      const dimX = x - 15;
-      ctx.beginPath();
-      ctx.moveTo(dimX, y);
-      ctx.lineTo(dimX, y + depth);
-      // Extension lines
-      ctx.moveTo(x, y);
-      ctx.lineTo(dimX, y);
-      ctx.moveTo(x, y + depth);
-      ctx.lineTo(dimX, y + depth);
-      // Arrowheads
-      drawArrowhead(ctx, dimX, y, 0);
-      drawArrowhead(ctx, dimX, y + depth, Math.PI);
-      ctx.stroke();
-      
-      // Depth text (rotated)
-      ctx.save();
-      ctx.translate(dimX - 10, y + depth / 2);
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillText(`${room.depth}'`, 0, 0);
-      ctx.restore();
-    });
-  };
-
-  const drawArrowhead = (ctx: CanvasRenderingContext2D, x: number, y: number, angle: number) => {
-    const size = 3;
+    // Left dimension
+    ctx.beginPath();
+    ctx.moveTo(leftX - 20, topY);
+    ctx.lineTo(leftX - 20, bottomY);
+    ctx.stroke();
     ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(-size, -size);
-    ctx.moveTo(0, 0);
-    ctx.lineTo(-size, size);
-    ctx.stroke();
+    ctx.translate(leftX - 35, (topY + bottomY) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(`${buildingDepth.toFixed(1)}'`, 0, 0);
     ctx.restore();
+    
+    ctx.setLineDash([]);
+  };
+
+  const drawTitleBlock = (ctx: CanvasRenderingContext2D, width: number, height: number, spec: BlueprintSpec) => {
+    const blockX = 20;
+    const blockY = height - 100;
+    const blockWidth = 350;
+    const blockHeight = 80;
+    
+    // Title block border
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(blockX, blockY, blockWidth, blockHeight);
+    
+    // Title block lines
+    ctx.beginPath();
+    ctx.moveTo(blockX + 120, blockY);
+    ctx.lineTo(blockX + 120, blockY + blockHeight);
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.moveTo(blockX, blockY + 40);
+    ctx.lineTo(blockX + blockWidth, blockY + 40);
+    ctx.stroke();
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.fillText('BLUEPRINT GENERATOR PRO', blockX + 10, blockY + 25);
+    
+    ctx.font = '10px "Courier New", monospace';
+    ctx.fillText(`PROJECT: ${spec.buildingType.toUpperCase()}`, blockX + 10, blockY + 55);
+    ctx.fillText(`DATE: ${new Date().toLocaleDateString()}`, blockX + 10, blockY + 72);
+    
+    ctx.font = '10px "Courier New", monospace';
+    ctx.fillText(`TOTAL AREA: ${spec.totalArea.toFixed(0)} SF`, blockX + 135, blockY + 25);
+    ctx.fillText(`ROOMS: ${spec.rooms?.length || 0}`, blockX + 135, blockY + 55);
+    ctx.fillText(`SCALE: 1/4" = 1'-0"`, blockX + 135, blockY + 72);
   };
 
   const drawNorthArrow = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
-    // Professional north arrow
-    ctx.fillStyle = '#1e293b';
-    ctx.font = 'bold 10px Arial';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 14px "Courier New", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('N', x, y - 8);
+    ctx.fillText('N', x, y - 15);
     
-    // Arrow with circle
     ctx.beginPath();
-    ctx.arc(x, y + 15, 10, 0, Math.PI * 2);
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    
-    // Arrow inside circle
-    ctx.beginPath();
-    ctx.moveTo(x, y + 5);
-    ctx.lineTo(x, y + 25);
-    ctx.lineTo(x - 5, y + 20);
-    ctx.moveTo(x, y + 25);
-    ctx.lineTo(x + 5, y + 20);
-    ctx.stroke();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - 8, y + 15);
+    ctx.lineTo(x + 8, y + 15);
+    ctx.closePath();
+    ctx.fill();
   };
 
-  const drawAnnotations = (ctx: CanvasRenderingContext2D, width: number, height: number, spec: BlueprintSpec) => {
-    // Title block (professional)
-    const titleBlockWidth = 200;
-    const titleBlockHeight = 80;
-    const titleX = width - titleBlockWidth - 20;
-    const titleY = height - titleBlockHeight - 20;
+  const drawScaleBar = (ctx: CanvasRenderingContext2D, x: number, y: number, unit: string) => {
+    const barWidth = 150;
+    const barHeight = 8;
     
-    // Title block background
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-    ctx.fillRect(titleX, titleY, titleBlockWidth, titleBlockHeight);
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(titleX, titleY, titleBlockWidth, titleBlockHeight);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '9px "Courier New", monospace';
+    ctx.textAlign = 'center';
     
-    // Title block content
-    ctx.fillStyle = '#1e293b';
-    ctx.font = 'bold 12px "Arial Narrow", sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('ARCHITECTURAL PLAN', titleX + 10, titleY + 20);
+    // Scale bar segments
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x, y, barWidth / 2, barHeight);
+    ctx.fillStyle = '#2a5a8c';
+    ctx.fillRect(x + barWidth / 2, y, barWidth / 2, barHeight);
     
-    ctx.font = '10px "Arial Narrow", sans-serif';
-    ctx.fillText(`Type: ${spec.buildingType.toUpperCase()}`, titleX + 10, titleY + 35);
-    ctx.fillText(`Area: ${spec.totalArea.toFixed(0)} SF`, titleX + 10, titleY + 50);
-    ctx.fillText(`Layout: ${spec.layout.toUpperCase()}`, titleX + 10, titleY + 65);
+    // Tick marks
+    for (let i = 0; i <= 4; i++) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + (barWidth / 4) * i, y - 3, 1, barHeight + 6);
+    }
     
-    // Drawing info
-    ctx.font = '8px "Courier New", monospace';
-    ctx.fillText(`Drawn: ${new Date(spec.createdAt).toLocaleDateString()}`, titleX + 110, titleY + 35);
-    ctx.fillText(`Units: ${spec.unit}`, titleX + 110, titleY + 50);
-    ctx.fillText(`Scale: 1/8" = 1'-0"`, titleX + 110, titleY + 65);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('0', x, y + 18);
+    ctx.fillText(`20${unit}`, x + barWidth / 2, y + 18);
+    ctx.fillText(`40${unit}`, x + barWidth, y + 18);
     
-    // Legend in bottom left
-    const legendX = 20;
-    const legendY = height - 120;
-    
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.fillRect(legendX, legendY, 180, 100);
-    ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(legendX, legendY, 180, 100);
-    
-    ctx.fillStyle = '#1e293b';
-    ctx.font = 'bold 10px "Arial Narrow", sans-serif';
-    ctx.fillText('LEGEND', legendX + 10, legendY + 15);
-    
-    ctx.font = '9px "Arial Narrow", sans-serif';
-    const legendItems = [
-      { color: '#1e293b', label: 'Exterior Wall', lineWidth: 3 },
-      { color: '#475569', label: 'Interior Wall', lineWidth: 1.5 },
-      { color: '#92400e', label: 'Door', lineWidth: 1.5 },
-      { color: '#0ea5e9', label: 'Window', lineWidth: 1 }
-    ];
-    
-    legendItems.forEach((item, i) => {
-      const itemY = legendY + 30 + i * 15;
-      ctx.strokeStyle = item.color;
-      ctx.lineWidth = item.lineWidth;
-      ctx.beginPath();
-      ctx.moveTo(legendX + 10, itemY);
-      ctx.lineTo(legendX + 30, itemY);
-      ctx.stroke();
-      
-      ctx.fillStyle = '#475569';
-      ctx.fillText(item.label, legendX + 40, itemY + 3);
-    });
+    ctx.fillText('SCALE BAR', x + barWidth / 2, y - 8);
   };
+
+  const drawLegend = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '9px "Courier New", monospace';
+    
+    // Legend border
+    ctx.strokeStyle = '#ffffff';
+    ctx.strokeRect(x, y - 5, 200, 50);
+    
+    ctx.fillText('LEGEND:', x + 5, y + 8);
+    
+    // Door symbol
+    ctx.fillStyle = '#e0a040';
+    ctx.fillRect(x + 70, y - 2, 8, 4);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('DOOR', x + 85, y + 5);
+    
+    // Window symbol
+    ctx.strokeStyle = '#60a0e0';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x + 70, y + 12);
+    ctx.lineTo(x + 78, y + 12);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('WINDOW', x + 85, y + 18);
+  };
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    
+    if (!isFullscreen) {
+      containerRef.current.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  const handleZoomIn = () => setScale(prev => Math.min(prev + 0.1, 2));
+  const handleZoomOut = () => setScale(prev => Math.max(prev - 0.1, 0.5));
+  const handleResetZoom = () => setScale(1);
 
   const handleCopyJSON = () => {
     navigator.clipboard.writeText(JSON.stringify(blueprint, null, 2))
-      .then(() => {
-        alert('Blueprint JSON copied to clipboard!');
-      });
+      .then(() => alert('Blueprint JSON copied to clipboard!'))
+      .catch(err => console.error('Failed to copy:', err));
+    trackExport('json');
   };
 
+  if (!blueprint || !blueprint.rooms || blueprint.rooms.length === 0) {
+    return (
+      <div className="bg-[#1a3a5c] rounded-xl border border-gray-600 p-8 text-center">
+        <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Ruler className="w-8 h-8 text-gray-400" />
+        </div>
+        <h3 className="font-semibold text-white">No Blueprint Available</h3>
+        <p className="text-sm text-gray-300 mt-2">Generate a blueprint to see the visualization here.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-lg">
-      <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-4 flex justify-between items-center">
-        <div className="flex items-center space-x-3">
-          <Building className="w-5 h-5" />
-          <div>
-            <h3 className="font-bold text-lg">Architectural Blueprint</h3>
-            <p className="text-sm text-gray-300 flex items-center">
-              <MapPin className="w-3 h-3 mr-1" />
-              {blueprint.country} • {blueprint.totalArea.toFixed(0)} sq {blueprint.unit} • 
-              <span className="ml-2 px-2 py-0.5 bg-gray-700 rounded text-xs">
-                {blueprint.layout.toUpperCase()} LAYOUT
-              </span>
-            </p>
-          </div>
+    <div className="bg-[#1a3a5c] rounded-xl border border-gray-600 overflow-hidden">
+      <div className="bg-[#0d2a45] text-white p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2 border-b border-gray-600">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-sm sm:text-base font-mono">{blueprint.buildingType?.charAt(0).toUpperCase() + blueprint.buildingType?.slice(1)} BLUEPRINT</h3>
+          <p className="text-xs text-gray-300 font-mono">
+            {blueprint.country} • {blueprint.totalArea?.toFixed(0) || 0} SQ FT • {blueprint.rooms?.length || 0} ROOMS
+          </p>
         </div>
         
-        <div className="flex items-center space-x-2">
-          {/* Zoom controls */}
-          <div className="flex items-center space-x-1 bg-gray-700 rounded-lg px-2 py-1">
-            <button 
-              onClick={() => setScale(s => Math.max(0.3, s - 0.1))}
-              className="p-1 hover:bg-gray-600 rounded"
-              title="Zoom Out"
-            >
-              <ZoomOut className="w-4 h-4" />
+        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+          <div className="flex items-center bg-[#0a1f35] rounded-lg border border-gray-600">
+            <button onClick={handleZoomOut} className="p-1.5 sm:p-2 hover:bg-gray-700 rounded-l-lg" title="Zoom Out">
+              <ZoomOut className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
-            <span className="text-sm w-12 text-center">{(scale * 100).toFixed(0)}%</span>
-            <button 
-              onClick={() => setScale(s => Math.min(2.5, s + 0.1))}
-              className="p-1 hover:bg-gray-600 rounded"
-              title="Zoom In"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={resetView}
-              className="p-1 hover:bg-gray-600 rounded ml-1"
-              title="Reset View"
-            >
-              <Home className="w-4 h-4" />
+            <span className="text-xs px-1 font-mono">{Math.round(scale * 100)}%</span>
+            <button onClick={handleZoomIn} className="p-1.5 sm:p-2 hover:bg-gray-700 rounded-r-lg" title="Zoom In">
+              <ZoomIn className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
           </div>
           
-          <div className="h-6 w-px bg-gray-600"></div>
+          <button onClick={handleResetZoom} className="p-1.5 sm:p-2 bg-[#0a1f35] hover:bg-gray-700 rounded-lg border border-gray-600 text-xs font-mono">
+            Reset
+          </button>
           
-          <button
-            onClick={onExportPDF}
-            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center space-x-2"
-            title="Export as PDF"
-          >
-            <Download className="w-4 h-4" />
-            <span className="text-sm">PDF</span>
+          <button onClick={toggleFullscreen} className="p-1.5 sm:p-2 bg-[#0a1f35] hover:bg-gray-700 rounded-lg border border-gray-600">
+            {isFullscreen ? <Minimize2 className="w-3 h-3 sm:w-4 sm:h-4" /> : <Maximize2 className="w-3 h-3 sm:w-4 sm:h-4" />}
           </button>
-          <button
-            onClick={handleCopyJSON}
-            className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center space-x-2"
-            title="Copy JSON"
-          >
-            <Copy className="w-4 h-4" />
-            <span className="text-sm">JSON</span>
+          
+          <button onClick={onExportPDF} className="p-1.5 sm:p-2 bg-[#0a1f35] hover:bg-gray-700 rounded-lg border border-gray-600" title="Export as PDF">
+            <Download className="w-3 h-3 sm:w-4 sm:h-4" />
           </button>
-          <button className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg">
-            <Printer className="w-4 h-4" />
+          
+          <button onClick={handleCopyJSON} className="p-1.5 sm:p-2 bg-[#0a1f35] hover:bg-gray-700 rounded-lg border border-gray-600" title="Copy JSON">
+            <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
           </button>
         </div>
       </div>
       
-      <div className="relative">
-        <div 
-          ref={containerRef}
-          className="overflow-auto p-4 bg-gray-50"
-          style={{ maxHeight: 'calc(100vh - 200px)' }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onWheel={handleWheel}
-        >
-          <div className="inline-block p-4 bg-white border border-gray-300 rounded-lg shadow-inner">
-            <canvas
-              ref={canvasRef}
-              className="bg-white"
-              style={{ 
-                display: 'block',
-                cursor: isPanning ? 'grabbing' : 'grab'
-              }}
-            />
-          </div>
+      <div ref={containerRef} className="p-2 sm:p-4 overflow-auto bg-[#1a3a5c]" style={{ maxHeight: '80vh' }}>
+        <div id="blueprint-canvas" className="border border-gray-600 rounded-lg overflow-auto bg-[#1a3a5c] shadow-xl" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+          <canvas
+            ref={canvasRef}
+            width={1200}
+            height={900}
+            className="shadow-2xl"
+            style={{ width: '100%', height: 'auto', maxWidth: '100%', display: 'block' }}
+          />
         </div>
         
-        {/* Instructions overlay */}
-        <div className="absolute bottom-4 left-4 bg-black/70 text-white text-xs px-3 py-2 rounded-lg">
-          <div className="flex items-center space-x-2">
-            <Layers className="w-3 h-3" />
-            <span>Drag to pan • Scroll to zoom</span>
-          </div>
-        </div>
-        
-        {/* Scale indicator */}
-        <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm border border-gray-300 rounded-lg px-3 py-2">
-          <div className="flex items-center space-x-2">
-            <Ruler className="w-4 h-4 text-gray-700" />
-            <div className="text-sm">
-              <div className="font-medium text-gray-800">Scale: 1/8" = 1'-0"</div>
-              <div className="text-xs text-gray-600">1:{Math.round(100 / scale)} • {blueprint.unit === 'feet' ? 'Imperial' : 'Metric'}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Stats bar */}
-      <div className="border-t border-gray-200 px-4 py-3 bg-gray-50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-6">
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-              <span className="text-sm text-gray-700">
-                Rooms: <span className="font-semibold">{blueprint.rooms.length}</span>
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Grid className="w-4 h-4 text-gray-500" />
-              <span className="text-sm text-gray-700">
-                Grid: <span className="font-semibold">{blueprint.unit === 'feet' ? '4ft' : '1.2m'}</span>
-              </span>
-            </div>
-          </div>
-          <div className="text-sm text-gray-500">
-            Last updated: {new Date(blueprint.createdAt).toLocaleDateString()}
-          </div>
+        <div className="mt-4 p-3 bg-[#0d2a45] rounded-lg border border-gray-600">
+          <p className="text-xs sm:text-sm text-gray-300 font-mono">
+            <strong className="text-yellow-400">PROFESSIONAL NOTE:</strong> This architectural drawing is for conceptual purposes. 
+            All dimensions must be verified by a licensed professional engineer or architect prior to construction. 
+            Scale: 1/4" = 1'-0"
+          </p>
         </div>
       </div>
     </div>
