@@ -47,20 +47,49 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 900 });
+
+  // Calculate responsive canvas size
+  useEffect(() => {
+    const updateCanvasSize = () => {
+      if (!containerRef.current) return;
+      
+      const containerWidth = containerRef.current.clientWidth - 32; // padding
+      const aspectRatio = 1200 / 900;
+      
+      let newWidth = Math.min(containerWidth, 1200);
+      let newHeight = newWidth / aspectRatio;
+      
+      // Ensure minimum sizes
+      if (newWidth < 320) {
+        newWidth = Math.min(containerWidth - 16, 1200);
+        newHeight = newWidth / aspectRatio;
+      }
+      
+      setCanvasSize({
+        width: Math.max(newWidth, 300),
+        height: Math.max(newHeight, 250)
+      });
+    };
+
+    updateCanvasSize();
+    window.addEventListener('resize', updateCanvasSize);
+    return () => window.removeEventListener('resize', updateCanvasSize);
+  }, []);
 
   useEffect(() => {
     if (canvasRef.current && blueprint?.rooms && blueprint.rooms.length > 0) {
       drawProfessionalBlueprint(canvasRef.current, blueprint, scale);
     }
-  }, [blueprint, scale]);
+  }, [blueprint, scale, canvasSize]);
 
   const drawProfessionalBlueprint = (canvas: HTMLCanvasElement, spec: BlueprintSpec, scaleValue: number = 1) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas dimensions for professional print (Arch D size proportion)
-    canvas.width = 1200;
-    canvas.height = 900;
+    // Set canvas to responsive size
+    canvas.width = canvasSize.width;
+    canvas.height = canvasSize.height;
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
@@ -74,15 +103,15 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
     // Safety check
     if (!spec.rooms || spec.rooms.length === 0) {
       ctx.fillStyle = '#ffffff';
-      ctx.font = '16px Arial';
+      ctx.font = `${Math.min(16, canvas.width / 30)}px Arial`;
       ctx.textAlign = 'center';
       ctx.fillText('No rooms to display. Generate a blueprint first.', canvas.width / 2, canvas.height / 2);
       return;
     }
     
     const gridSize = spec.unit === 'feet' ? 20 : 6;
-    const padding = 80;
-    const margin = 100;
+    const padding = Math.min(canvas.width * 0.08, 80);
+    const margin = Math.min(canvas.width * 0.08, 100);
     
     // Find bounds
     let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
@@ -104,19 +133,19 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
     const totalWidth = maxX - minX;
     const totalHeight = maxY - minY;
     const availableWidth = canvas.width - margin * 2;
-    const availableHeight = canvas.height - margin * 2 - 120;
+    const availableHeight = canvas.height - margin * 2 - Math.min(120, canvas.height * 0.12);
     
     const fitScale = Math.min(availableWidth / totalWidth, availableHeight / totalHeight);
     const finalScale = fitScale * scaleValue;
     
-    // Draw title block
+    // Draw title block (scaled for mobile)
     drawTitleBlock(ctx, canvas.width, canvas.height, spec);
     
     // Draw north arrow
-    drawNorthArrow(ctx, canvas.width - 80, margin - 20);
+    drawNorthArrow(ctx, canvas.width - Math.min(80, canvas.width * 0.07), margin - 10);
     
-    // Draw scale bar
-    drawScaleBar(ctx, canvas.width - 200, canvas.height - 60, spec.unit);
+    // Draw scale bar (scaled for mobile)
+    drawScaleBar(ctx, canvas.width - Math.min(200, canvas.width * 0.2), canvas.height - Math.min(60, canvas.height * 0.06), spec.unit);
     
     // Draw each room
     spec.rooms.forEach(room => {
@@ -133,8 +162,8 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
     // Draw overall dimensions
     drawOverallDimensions(ctx, spec, minX, minY, maxX, maxY, finalScale, margin, gridSize);
     
-    // Draw legend
-    drawLegend(ctx, margin, canvas.height - 80);
+    // Draw legend (scaled for mobile)
+    drawLegend(ctx, margin, canvas.height - Math.min(70, canvas.height * 0.08));
   };
 
   const drawBlueprintGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -142,32 +171,35 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
     ctx.strokeStyle = '#2a5a8c';
     ctx.lineWidth = 0.5;
     
-    for (let x = 0; x <= width; x += 40) {
+    const gridStep = Math.max(20, Math.min(40, width / 30));
+    
+    for (let x = 0; x <= width; x += gridStep) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, height);
       ctx.stroke();
     }
     
-    for (let y = 0; y <= height; y += 40) {
+    for (let y = 0; y <= height; y += gridStep) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(width, y);
       ctx.stroke();
     }
     
-    // Minor grid lines (every 10px)
+    // Minor grid lines
     ctx.strokeStyle = '#1a4a7c';
     ctx.lineWidth = 0.3;
+    const minorStep = gridStep / 4;
     
-    for (let x = 0; x <= width; x += 10) {
+    for (let x = 0; x <= width; x += minorStep) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, height);
       ctx.stroke();
     }
     
-    for (let y = 0; y <= height; y += 10) {
+    for (let y = 0; y <= height; y += minorStep) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(width, y);
@@ -176,43 +208,45 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
   };
 
   const drawRoom = (ctx: CanvasRenderingContext2D, room: Room, x: number, y: number, width: number, depth: number, unit: string, scale: number) => {
-    if (!room) return;
+    if (!room || width < 2 || depth < 2) return;
     
     // Draw exterior walls (thicker)
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(2, Math.min(4, width / 40));
     ctx.setLineDash([]);
     ctx.strokeRect(x, y, width, depth);
     
     // Draw interior walls (thinner)
     ctx.strokeStyle = '#c0c0c0';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, Math.min(2, width / 60));
     ctx.strokeRect(x, y, width, depth);
     
-    // Draw room label
+    // Draw room label - responsive font size
+    const fontSize = Math.max(8, Math.min(16, width / 12));
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.max(10, Math.min(16, width / 12))}px "Courier New", monospace`;
+    ctx.font = `bold ${fontSize}px "Courier New", monospace`;
     ctx.textAlign = 'center';
     ctx.fillText(
       room.name?.toUpperCase() || 'ROOM',
       x + width / 2,
-      y + depth / 2 - 8
+      y + depth / 2 - fontSize * 0.4
     );
     
     // Draw dimensions
-    ctx.font = `${Math.max(8, Math.min(12, width / 18))}px "Courier New", monospace`;
+    const dimFontSize = Math.max(7, Math.min(12, width / 18));
+    ctx.font = `${dimFontSize}px "Courier New", monospace`;
     ctx.fillStyle = '#a0c0e0';
     ctx.fillText(
       `${room.width}' x ${room.depth}'`,
       x + width / 2,
-      y + depth / 2 + 10
+      y + depth / 2 + fontSize * 0.5
     );
     
     // Draw area
     ctx.fillText(
       `${room.area} SF`,
       x + width / 2,
-      y + depth / 2 + 25
+      y + depth / 2 + fontSize * 0.5 + dimFontSize + 2
     );
     
     // Draw doors
@@ -220,9 +254,6 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
       room.doors.forEach(door => {
         drawDoorSymbol(ctx, x, y, width, depth, door);
       });
-    } else {
-      // Add default door on south wall
-      drawDoorSymbol(ctx, x, y, width, depth, { wall: 'south', position: 0.5, width: 3 });
     }
     
     // Draw windows
@@ -234,24 +265,23 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
   };
 
   const drawDoorSymbol = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, depth: number, door: any) => {
+    if (!door) return;
+    
     ctx.strokeStyle = '#e0a040';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1.5, Math.min(3, width / 50));
     ctx.fillStyle = '#e0a040';
     
-    const doorWidth = 15; // pixels
-    const doorSwingRadius = 20;
+    const doorWidth = Math.min(15, Math.max(8, width / 10));
+    const doorSwingRadius = Math.min(20, Math.max(12, width / 8));
     
     switch(door.wall) {
       case 'south':
         const doorX = x + width * door.position;
         const doorY = y + depth;
-        // Draw door rectangle
-        ctx.fillRect(doorX - 3, doorY - 3, 6, 6);
-        // Draw door swing arc
+        ctx.fillRect(doorX - 2, doorY - 2, 4, 4);
         ctx.beginPath();
         ctx.arc(doorX, doorY, doorSwingRadius, 0, Math.PI / 2);
         ctx.stroke();
-        // Draw door line
         ctx.beginPath();
         ctx.moveTo(doorX, doorY);
         ctx.lineTo(doorX + doorSwingRadius, doorY);
@@ -261,7 +291,7 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
       case 'north':
         const doorXN = x + width * door.position;
         const doorYN = y;
-        ctx.fillRect(doorXN - 3, doorYN - 3, 6, 6);
+        ctx.fillRect(doorXN - 2, doorYN - 2, 4, 4);
         ctx.beginPath();
         ctx.arc(doorXN, doorYN, doorSwingRadius, Math.PI, Math.PI * 1.5);
         ctx.stroke();
@@ -274,7 +304,7 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
       case 'east':
         const doorXE = x + width;
         const doorYE = y + depth * door.position;
-        ctx.fillRect(doorXE - 3, doorYE - 3, 6, 6);
+        ctx.fillRect(doorXE - 2, doorYE - 2, 4, 4);
         ctx.beginPath();
         ctx.arc(doorXE, doorYE, doorSwingRadius, -Math.PI / 2, 0);
         ctx.stroke();
@@ -287,7 +317,7 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
       case 'west':
         const doorXW = x;
         const doorYW = y + depth * door.position;
-        ctx.fillRect(doorXW - 3, doorYW - 3, 6, 6);
+        ctx.fillRect(doorXW - 2, doorYW - 2, 4, 4);
         ctx.beginPath();
         ctx.arc(doorXW, doorYW, doorSwingRadius, Math.PI / 2, Math.PI);
         ctx.stroke();
@@ -300,11 +330,13 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
   };
 
   const drawWindowSymbol = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, depth: number, window: any) => {
+    if (!window) return;
+    
     ctx.strokeStyle = '#60a0e0';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1.5, Math.min(3, width / 50));
     ctx.setLineDash([4, 4]);
     
-    const windowWidth = 30;
+    const windowWidth = Math.min(30, Math.max(15, width / 6));
     
     switch(window.wall) {
       case 'north':
@@ -361,7 +393,7 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
     ctx.strokeStyle = '#80c0e0';
     ctx.lineWidth = 1;
     ctx.fillStyle = '#80c0e0';
-    ctx.font = '10px "Courier New", monospace';
+    ctx.font = `${Math.min(10, Math.max(8, (rightX - leftX) / 60))}px "Courier New", monospace`;
     ctx.setLineDash([5, 5]);
     
     // Top dimension
@@ -390,109 +422,110 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
   };
 
   const drawTitleBlock = (ctx: CanvasRenderingContext2D, width: number, height: number, spec: BlueprintSpec) => {
-    const blockX = 20;
-    const blockY = height - 100;
-    const blockWidth = 350;
-    const blockHeight = 80;
+    const blockX = 15;
+    const blockY = height - Math.min(90, height * 0.1);
+    const blockWidth = Math.min(280, width * 0.3);
+    const blockHeight = Math.min(70, height * 0.08);
     
-    // Title block border
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.strokeRect(blockX, blockY, blockWidth, blockHeight);
     
-    // Title block lines
     ctx.beginPath();
-    ctx.moveTo(blockX + 120, blockY);
-    ctx.lineTo(blockX + 120, blockY + blockHeight);
+    ctx.moveTo(blockX + Math.min(100, blockWidth * 0.35), blockY);
+    ctx.lineTo(blockX + Math.min(100, blockWidth * 0.35), blockY + blockHeight);
     ctx.stroke();
     
     ctx.beginPath();
-    ctx.moveTo(blockX, blockY + 40);
-    ctx.lineTo(blockX + blockWidth, blockY + 40);
+    ctx.moveTo(blockX, blockY + blockHeight / 2);
+    ctx.lineTo(blockX + blockWidth, blockY + blockHeight / 2);
     ctx.stroke();
+    
+    const titleSize = Math.min(11, Math.max(8, blockWidth / 25));
+    const textSize = Math.min(8, Math.max(6, blockWidth / 35));
     
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 14px "Courier New", monospace';
-    ctx.fillText('BLUEPRINT GENERATOR PRO', blockX + 10, blockY + 25);
+    ctx.font = `bold ${titleSize}px "Courier New", monospace`;
+    ctx.fillText('BLUEPRINT PRO', blockX + 8, blockY + 18);
     
-    ctx.font = '10px "Courier New", monospace';
-    ctx.fillText(`PROJECT: ${spec.buildingType.toUpperCase()}`, blockX + 10, blockY + 55);
-    ctx.fillText(`DATE: ${new Date().toLocaleDateString()}`, blockX + 10, blockY + 72);
+    ctx.font = `${textSize}px "Courier New", monospace`;
+    ctx.fillText(`PROJECT: ${spec.buildingType.toUpperCase()}`, blockX + 8, blockY + 35);
+    ctx.fillText(`DATE: ${new Date().toLocaleDateString()}`, blockX + 8, blockY + 52);
     
-    ctx.font = '10px "Courier New", monospace';
-    ctx.fillText(`TOTAL AREA: ${spec.totalArea.toFixed(0)} SF`, blockX + 135, blockY + 25);
-    ctx.fillText(`ROOMS: ${spec.rooms?.length || 0}`, blockX + 135, blockY + 55);
-    ctx.fillText(`SCALE: 1/4" = 1'-0"`, blockX + 135, blockY + 72);
+    ctx.fillText(`AREA: ${spec.totalArea.toFixed(0)} SF`, blockX + Math.min(105, blockWidth * 0.37) + 8, blockY + 18);
+    ctx.fillText(`ROOMS: ${spec.rooms?.length || 0}`, blockX + Math.min(105, blockWidth * 0.37) + 8, blockY + 35);
+    ctx.fillText(`SCALE: 1/4" = 1'-0"`, blockX + Math.min(105, blockWidth * 0.37) + 8, blockY + 52);
   };
 
   const drawNorthArrow = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 14px "Courier New", monospace';
+    const fontSize = Math.min(12, Math.max(8, x / 10));
+    ctx.font = `bold ${fontSize}px "Courier New", monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText('N', x, y - 15);
+    ctx.fillText('N', x, y - 12);
     
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineTo(x - 8, y + 15);
-    ctx.lineTo(x + 8, y + 15);
+    ctx.lineTo(x - 6, y + 12);
+    ctx.lineTo(x + 6, y + 12);
     ctx.closePath();
     ctx.fill();
   };
 
   const drawScaleBar = (ctx: CanvasRenderingContext2D, x: number, y: number, unit: string) => {
-    const barWidth = 150;
-    const barHeight = 8;
+    const barWidth = Math.min(130, x * 0.15);
+    const barHeight = 6;
     
     ctx.fillStyle = '#ffffff';
-    ctx.font = '9px "Courier New", monospace';
+    const fontSize = Math.min(8, Math.max(6, barWidth / 16));
+    ctx.font = `${fontSize}px "Courier New", monospace`;
     ctx.textAlign = 'center';
     
-    // Scale bar segments
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(x, y, barWidth / 2, barHeight);
     ctx.fillStyle = '#2a5a8c';
     ctx.fillRect(x + barWidth / 2, y, barWidth / 2, barHeight);
     
-    // Tick marks
     for (let i = 0; i <= 4; i++) {
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x + (barWidth / 4) * i, y - 3, 1, barHeight + 6);
+      ctx.fillRect(x + (barWidth / 4) * i, y - 2, 1, barHeight + 4);
     }
     
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('0', x, y + 18);
-    ctx.fillText(`20${unit}`, x + barWidth / 2, y + 18);
-    ctx.fillText(`40${unit}`, x + barWidth, y + 18);
+    ctx.fillText('0', x, y + 16);
+    ctx.fillText(`20${unit}`, x + barWidth / 2, y + 16);
+    ctx.fillText(`40${unit}`, x + barWidth, y + 16);
     
-    ctx.fillText('SCALE BAR', x + barWidth / 2, y - 8);
+    ctx.fillText('SCALE', x + barWidth / 2, y - 6);
   };
 
   const drawLegend = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
     ctx.fillStyle = '#ffffff';
-    ctx.font = '9px "Courier New", monospace';
+    const fontSize = Math.min(8, Math.max(6, x / 25));
+    ctx.font = `${fontSize}px "Courier New", monospace`;
     
-    // Legend border
+    const legendWidth = Math.min(160, x * 0.2);
     ctx.strokeStyle = '#ffffff';
-    ctx.strokeRect(x, y - 5, 200, 50);
+    ctx.strokeRect(x, y - 4, legendWidth, Math.min(40, legendWidth * 0.25));
     
-    ctx.fillText('LEGEND:', x + 5, y + 8);
+    ctx.fillText('LEGEND:', x + 5, y + fontSize + 2);
     
     // Door symbol
     ctx.fillStyle = '#e0a040';
-    ctx.fillRect(x + 70, y - 2, 8, 4);
+    ctx.fillRect(x + Math.min(50, legendWidth * 0.35), y + 2, 6, 3);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('DOOR', x + 85, y + 5);
+    ctx.fillText('DOOR', x + Math.min(62, legendWidth * 0.4), y + fontSize + 2);
     
     // Window symbol
     ctx.strokeStyle = '#60a0e0';
-    ctx.setLineDash([4, 4]);
+    ctx.setLineDash([3, 3]);
     ctx.beginPath();
-    ctx.moveTo(x + 70, y + 12);
-    ctx.lineTo(x + 78, y + 12);
+    ctx.moveTo(x + Math.min(50, legendWidth * 0.35), y + fontSize + 6);
+    ctx.lineTo(x + Math.min(56, legendWidth * 0.4), y + fontSize + 6);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('WINDOW', x + 85, y + 18);
+    ctx.fillText('WINDOW', x + Math.min(62, legendWidth * 0.4), y + fontSize + 12 + 2);
   };
 
   const toggleFullscreen = () => {
@@ -520,68 +553,86 @@ export const BlueprintViewer = ({ blueprint, onExportPDF }: BlueprintViewerProps
 
   if (!blueprint || !blueprint.rooms || blueprint.rooms.length === 0) {
     return (
-      <div className="bg-[#1a3a5c] rounded-xl border border-gray-600 p-8 text-center">
-        <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Ruler className="w-8 h-8 text-gray-400" />
+      <div className="bg-[#1a3a5c] rounded-xl border border-gray-600 p-6 sm:p-8 text-center">
+        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+          <Ruler className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" />
         </div>
-        <h3 className="font-semibold text-white">No Blueprint Available</h3>
-        <p className="text-sm text-gray-300 mt-2">Generate a blueprint to see the visualization here.</p>
+        <h3 className="font-semibold text-white text-sm sm:text-base">No Blueprint Available</h3>
+        <p className="text-xs sm:text-sm text-gray-300 mt-2">Generate a blueprint to see the visualization here.</p>
       </div>
     );
   }
 
   return (
     <div className="bg-[#1a3a5c] rounded-xl border border-gray-600 overflow-hidden">
-      <div className="bg-[#0d2a45] text-white p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2 border-b border-gray-600">
+      <div className="bg-[#0d2a45] text-white p-2 sm:p-3 md:p-4 flex flex-wrap items-center justify-between gap-1 sm:gap-2 border-b border-gray-600">
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-sm sm:text-base font-mono">{blueprint.buildingType?.charAt(0).toUpperCase() + blueprint.buildingType?.slice(1)} BLUEPRINT</h3>
-          <p className="text-xs text-gray-300 font-mono">
+          <h3 className="font-semibold text-xs sm:text-sm md:text-base font-mono truncate">
+            {blueprint.buildingType?.charAt(0).toUpperCase() + blueprint.buildingType?.slice(1)} BLUEPRINT
+          </h3>
+          <p className="text-[10px] sm:text-xs text-gray-300 font-mono truncate">
             {blueprint.country} • {blueprint.totalArea?.toFixed(0) || 0} SQ FT • {blueprint.rooms?.length || 0} ROOMS
           </p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+        <div className="flex flex-wrap items-center gap-0.5 sm:gap-1">
           <div className="flex items-center bg-[#0a1f35] rounded-lg border border-gray-600">
-            <button onClick={handleZoomOut} className="p-1.5 sm:p-2 hover:bg-gray-700 rounded-l-lg" title="Zoom Out">
+            <button onClick={handleZoomOut} className="p-1 sm:p-1.5 hover:bg-gray-700 rounded-l-lg" title="Zoom Out">
               <ZoomOut className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
-            <span className="text-xs px-1 font-mono">{Math.round(scale * 100)}%</span>
-            <button onClick={handleZoomIn} className="p-1.5 sm:p-2 hover:bg-gray-700 rounded-r-lg" title="Zoom In">
+            <span className="text-[10px] sm:text-xs px-0.5 sm:px-1 font-mono">{Math.round(scale * 100)}%</span>
+            <button onClick={handleZoomIn} className="p-1 sm:p-1.5 hover:bg-gray-700 rounded-r-lg" title="Zoom In">
               <ZoomIn className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
           </div>
           
-          <button onClick={handleResetZoom} className="p-1.5 sm:p-2 bg-[#0a1f35] hover:bg-gray-700 rounded-lg border border-gray-600 text-xs font-mono">
+          <button onClick={handleResetZoom} className="p-1 sm:p-1.5 bg-[#0a1f35] hover:bg-gray-700 rounded-lg border border-gray-600 text-[10px] sm:text-xs font-mono">
             Reset
           </button>
           
-          <button onClick={toggleFullscreen} className="p-1.5 sm:p-2 bg-[#0a1f35] hover:bg-gray-700 rounded-lg border border-gray-600">
+          <button onClick={toggleFullscreen} className="p-1 sm:p-1.5 bg-[#0a1f35] hover:bg-gray-700 rounded-lg border border-gray-600">
             {isFullscreen ? <Minimize2 className="w-3 h-3 sm:w-4 sm:h-4" /> : <Maximize2 className="w-3 h-3 sm:w-4 sm:h-4" />}
           </button>
           
-          <button onClick={onExportPDF} className="p-1.5 sm:p-2 bg-[#0a1f35] hover:bg-gray-700 rounded-lg border border-gray-600" title="Export as PDF">
+          <button onClick={onExportPDF} className="p-1 sm:p-1.5 bg-[#0a1f35] hover:bg-gray-700 rounded-lg border border-gray-600" title="Export as PDF">
             <Download className="w-3 h-3 sm:w-4 sm:h-4" />
           </button>
           
-          <button onClick={handleCopyJSON} className="p-1.5 sm:p-2 bg-[#0a1f35] hover:bg-gray-700 rounded-lg border border-gray-600" title="Copy JSON">
+          <button onClick={handleCopyJSON} className="p-1 sm:p-1.5 bg-[#0a1f35] hover:bg-gray-700 rounded-lg border border-gray-600" title="Copy JSON">
             <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
           </button>
         </div>
       </div>
       
-      <div ref={containerRef} className="p-2 sm:p-4 overflow-auto bg-[#1a3a5c]" style={{ maxHeight: '80vh' }}>
-        <div id="blueprint-canvas" className="border border-gray-600 rounded-lg overflow-auto bg-[#1a3a5c] shadow-xl" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+      <div ref={containerRef} className="p-2 sm:p-3 md:p-4 overflow-auto bg-[#1a3a5c]" style={{ maxHeight: '80vh' }}>
+        <div 
+          id="blueprint-canvas" 
+          className="border border-gray-600 rounded-lg overflow-auto bg-[#1a3a5c] shadow-xl"
+          style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            minHeight: '300px',
+            touchAction: 'pan-x pan-y'
+          }}
+        >
           <canvas
             ref={canvasRef}
-            width={1200}
-            height={900}
+            width={canvasSize.width}
+            height={canvasSize.height}
             className="shadow-2xl"
-            style={{ width: '100%', height: 'auto', maxWidth: '100%', display: 'block' }}
+            style={{ 
+              width: '100%', 
+              height: 'auto', 
+              maxWidth: '100%', 
+              display: 'block',
+              touchAction: 'none'
+            }}
           />
         </div>
         
-        <div className="mt-4 p-3 bg-[#0d2a45] rounded-lg border border-gray-600">
-          <p className="text-xs sm:text-sm text-gray-300 font-mono">
+        <div className="mt-3 sm:mt-4 p-2 sm:p-3 bg-[#0d2a45] rounded-lg border border-gray-600">
+          <p className="text-[10px] sm:text-xs md:text-sm text-gray-300 font-mono">
             <strong className="text-yellow-400">PROFESSIONAL NOTE:</strong> This architectural drawing is for conceptual purposes. 
             All dimensions must be verified by a licensed professional engineer or architect prior to construction. 
             Scale: 1/4" = 1'-0"

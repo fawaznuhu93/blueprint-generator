@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { AdvancedBuildingForm } from '../components/Generator/AdvancedBuildingForm';
 import { CountrySelector } from '../components/Generator/CountrySelector';
 import { ProfessionalToggle } from '../components/Generator/ProfessionalToggle';
@@ -52,7 +52,11 @@ export function GeneratorPage() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   
-  // Professional customizations state - fully integrated
+  // Refs for scrolling to blueprint
+  const blueprintRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  
+  // Professional customizations state
   const [professionalCustomizations, setProfessionalCustomizations] = useState({
     roomSizes: {},
     wallThickness: 6,
@@ -68,26 +72,27 @@ export function GeneratorPage() {
   const handleBuildingSubmit = (data: any) => {
     console.log('📋 Building data received:', data);
     setBuildingData(data);
+    if (!professionalMode) {
+      handleGenerateWithData(data);
+    }
   };
   
-  const handleGenerateClick = async () => {
-    if (!buildingData) return;
-    
+  const handleGenerateWithData = async (data: any, customizationsData?: any) => {
     setIsGenerating(true);
     setWarnings([]);
     setApiError(null);
     
     try {
-      const finalCustomizations = professionalMode ? professionalCustomizations : null;
+      const finalCustomizations = professionalMode ? professionalCustomizations : customizationsData;
       
       const aiSpec = await generateBlueprintWithAI(
-        buildingData.buildingType,
+        data.buildingType,
         country,
         professionalMode,
-        buildingData.roomCount,
-        buildingData.landSize,
-        buildingData.description,
-        buildingData.guestToilet,
+        data.roomCount,
+        data.landSize,
+        data.description,
+        data.guestToilet,
         finalCustomizations
       );
       
@@ -104,14 +109,30 @@ export function GeneratorPage() {
       };
       
       setBlueprint(finalSpec);
-      trackBlueprintGenerated(buildingData.buildingType, country);
+      trackBlueprintGenerated(data.buildingType, country);
       setStep(3);
+      
+      // 🔥 AUTO-SCROLL TO BLUEPRINT AFTER GENERATION
+      setTimeout(() => {
+        if (blueprintRef.current) {
+          blueprintRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+          });
+        }
+      }, 500);
       
     } catch (error: any) {
       console.error('❌ Generation failed:', error);
       setApiError(error.message || 'Failed to generate blueprint.');
     } finally {
       setIsGenerating(false);
+    }
+  };
+  
+  const handleGenerateClick = () => {
+    if (buildingData) {
+      handleGenerateWithData(buildingData, professionalCustomizations);
     }
   };
   
@@ -144,16 +165,16 @@ export function GeneratorPage() {
   
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 py-4">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">🏗️ Blueprint Generator Pro</h1>
-              <p className="text-xs sm:text-sm text-gray-500">AI-Powered Architectural Plans</p>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-sm sm:text-xl md:text-2xl font-bold text-gray-900 truncate">🏗️ Blueprint Pro</h1>
+              <p className="text-xs sm:text-sm text-gray-500 hidden xs:block">AI-Powered Architectural Plans</p>
             </div>
-            <div className="flex items-center space-x-3">
-              <span className="text-xs bg-green-100 text-green-800 px-3 py-1 rounded-full">
-                {buildingData?.buildingType ? 'Project Configured' : 'Ready to Start'}
+            <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
+              <span className="text-[10px] sm:text-xs bg-green-100 text-green-800 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full truncate max-w-[80px] sm:max-w-none">
+                {buildingData?.buildingType ? '✅ Configured' : 'Ready'}
               </span>
               <ProfessionalToggle 
                 isProfessional={professionalMode} 
@@ -165,12 +186,12 @@ export function GeneratorPage() {
         </div>
       </header>
       
-      <main className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
-        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+      <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
+        <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 lg:gap-8">
           {/* Left Column - Form */}
-          <div className="w-full lg:w-1/3 space-y-6">
-            {/* Main Building Form - FULLY INTEGRATED with professional mode */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
+          <div className="w-full lg:w-1/3 space-y-4 sm:space-y-6" ref={formRef}>
+            {/* Main Building Form */}
+            <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 md:p-6 shadow-sm">
               <AdvancedBuildingForm 
                 onSubmit={handleBuildingSubmit}
                 professionalMode={professionalMode}
@@ -184,16 +205,16 @@ export function GeneratorPage() {
               <button
                 onClick={handleGenerateClick}
                 disabled={isGenerating}
-                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
+                className="w-full py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
                 {isGenerating ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                     <span>Generating Blueprint...</span>
                   </>
                 ) : (
                   <>
-                    <Zap className="w-4 h-4" />
+                    <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
                     <span>Generate Blueprint</span>
                   </>
                 )}
@@ -202,26 +223,26 @@ export function GeneratorPage() {
             
             {/* Export Options - After generation */}
             {step === 3 && blueprint && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
-                <h3 className="font-semibold text-gray-800 mb-4">Export Options</h3>
-                <div className="space-y-3">
+              <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 md:p-6 shadow-sm">
+                <h3 className="font-semibold text-gray-800 mb-3 sm:mb-4 text-sm sm:text-base">Export Options</h3>
+                <div className="space-y-2 sm:space-y-3">
                   <button
                     onClick={handleExportPDF}
-                    className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                    className="w-full py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg font-medium text-sm sm:text-base hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
                   >
                     <Download className="w-4 h-4" />
-                    <span>Download as PDF</span>
+                    <span>Download PDF</span>
                   </button>
                   <button
                     onClick={handleExportSVG}
-                    className="w-full py-3 bg-gray-100 text-gray-800 rounded-lg font-medium hover:bg-gray-200 transition-colors border border-gray-300 flex items-center justify-center space-x-2"
+                    className="w-full py-2.5 sm:py-3 bg-gray-100 text-gray-800 rounded-lg font-medium text-sm sm:text-base hover:bg-gray-200 transition-colors border border-gray-300 flex items-center justify-center space-x-2"
                   >
                     <FileImage className="w-4 h-4" />
-                    <span>Download as SVG</span>
+                    <span>Download SVG</span>
                   </button>
                   <button
                     onClick={handleCopyJSON}
-                    className="w-full py-3 bg-gray-100 text-gray-800 rounded-lg font-medium hover:bg-gray-200 transition-colors border border-gray-300 flex items-center justify-center space-x-2"
+                    className="w-full py-2.5 sm:py-3 bg-gray-100 text-gray-800 rounded-lg font-medium text-sm sm:text-base hover:bg-gray-200 transition-colors border border-gray-300 flex items-center justify-center space-x-2"
                   >
                     <FileJson className="w-4 h-4" />
                     <span>Copy JSON</span>
@@ -234,7 +255,7 @@ export function GeneratorPage() {
                     setBlueprint(null);
                     setBuildingData(null);
                   }}
-                  className="w-full mt-3 py-3 bg-gray-100 text-gray-800 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                  className="w-full mt-3 py-2.5 sm:py-3 bg-gray-100 text-gray-800 rounded-lg font-medium text-sm sm:text-base hover:bg-gray-200 transition-colors"
                 >
                   Start New Project
                 </button>
@@ -245,82 +266,95 @@ export function GeneratorPage() {
           </div>
           
           {/* Right Column - Blueprint Display */}
-          <div className="w-full lg:w-2/3 space-y-6">
-            {apiError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                  <div>
-                    <h4 className="font-medium text-red-800">Error</h4>
-                    <p className="text-sm text-red-700 mt-1">{apiError}</p>
+          <div className="w-full lg:w-2/3 space-y-4 sm:space-y-6">
+            {/* Scroll target ref for blueprint */}
+            <div ref={blueprintRef} className="scroll-mt-20">
+              {apiError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
+                  <div className="flex items-start space-x-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-red-800 text-sm">Error</h4>
+                      <p className="text-xs sm:text-sm text-red-700 mt-1">{apiError}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            
-            {warnings.length > 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-                  <div>
-                    <h4 className="font-medium text-yellow-800">Layout Warnings</h4>
-                    <ul className="mt-2 text-sm text-yellow-700 space-y-1">
-                      {warnings.slice(0, 3).map((warning, index) => (
-                        <li key={index}>• {warning}</li>
-                      ))}
-                    </ul>
+              )}
+              
+              {warnings.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4">
+                  <div className="flex items-start space-x-3">
+                    <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-yellow-800 text-sm">Layout Warnings</h4>
+                      <ul className="mt-1 text-xs sm:text-sm text-yellow-700 space-y-0.5">
+                        {warnings.slice(0, 3).map((warning, index) => (
+                          <li key={index}>• {warning}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            
-            {isGenerating ? (
-              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-                <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-800">Generating Your Blueprint...</h3>
-                <p className="text-sm text-gray-500 mt-2">AI is creating your professional architectural plan.</p>
-              </div>
-            ) : blueprint ? (
-              <BlueprintViewer blueprint={blueprint} onExportPDF={handleExportPDF} />
-            ) : (
-              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-                <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <div className="text-4xl">🏗️</div>
+              )}
+              
+              {isGenerating ? (
+                <div className="bg-white rounded-xl border border-gray-200 p-8 sm:p-12 text-center">
+                  <Loader2 className="w-12 h-12 sm:w-16 sm:h-16 text-blue-600 animate-spin mx-auto mb-4" />
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800">Generating Your Blueprint...</h3>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-2">AI is creating your professional architectural plan.</p>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-800 mb-2">Ready to Create Your Blueprint</h3>
-                <p className="text-gray-600 max-w-md mx-auto">
-                  Fill out the form on the left to generate your professional architectural blueprint.
-                </p>
-                {professionalMode && (
-                  <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-blue-800">
-                      <strong>Professional Mode Active:</strong> Additional tabs for Room Sizes, Layout, Structural, and Exterior are available in the form above.
-                    </p>
+              ) : blueprint ? (
+                <BlueprintViewer blueprint={blueprint} onExportPDF={handleExportPDF} />
+              ) : (
+                <div className="bg-white rounded-xl border border-gray-200 p-8 sm:p-12 text-center">
+                  <div className="w-16 h-16 sm:w-24 sm:h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                    <div className="text-3xl sm:text-4xl">🏗️</div>
                   </div>
-                )}
-              </div>
-            )}
-            
-            {blueprint && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-                  <div>
-                    <h4 className="font-medium text-green-800">Blueprint Generated Successfully!</h4>
-                    <p className="mt-1 text-sm text-green-700">
-                      {buildingData?.buildingType?.toUpperCase()} • {blueprint.totalArea.toFixed(0)} sq ft • {blueprint.rooms.length} rooms
-                    </p>
+                  <h3 className="text-base sm:text-lg md:text-xl font-semibold text-gray-800 mb-2">Ready to Create Your Blueprint</h3>
+                  <p className="text-xs sm:text-sm md:text-base text-gray-600 max-w-md mx-auto">
+                    Fill out the form to generate your professional architectural blueprint.
+                  </p>
+                  {professionalMode && (
+                    <div className="mt-4 p-3 sm:p-4 bg-blue-50 rounded-lg">
+                      <p className="text-xs sm:text-sm text-blue-800">
+                        <strong>Professional Mode Active:</strong> Customize room sizes, layout, and structural details in the form above.
+                      </p>
+                    </div>
+                  )}
+                  {!professionalMode && (
+                    <div className="mt-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                      <p className="text-xs sm:text-sm text-gray-600">
+                        💡 Toggle <strong>"Pro"</strong> mode in the top-right for advanced customization.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {blueprint && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4 mt-4">
+                  <div className="flex items-start space-x-3">
+                    <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-green-800 text-sm">Blueprint Generated Successfully!</h4>
+                      <p className="mt-1 text-xs sm:text-sm text-green-700">
+                        {buildingData?.buildingType?.toUpperCase()} • {blueprint.totalArea.toFixed(0)} sq ft • {blueprint.rooms.length} rooms
+                      </p>
+                      <p className="mt-1 text-xs text-green-600">
+                        📱 Scroll down to view the full blueprint. Pinch to zoom on mobile.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </main>
       
-      <footer className="mt-12 border-t border-gray-200 bg-white py-6">
-        <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-sm text-gray-600">Blueprint Generator Pro • Powered by AI</p>
+      <footer className="mt-8 sm:mt-12 border-t border-gray-200 bg-white py-4 sm:py-6">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 text-center">
+          <p className="text-xs sm:text-sm text-gray-600">Blueprint Generator Pro • Powered by AI</p>
         </div>
       </footer>
     </div>
