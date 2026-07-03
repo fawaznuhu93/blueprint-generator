@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { buildingTypes } from '../../config/buildingTypes';
-import { Home, Plus, Minus, Bath, MessageSquare, Ruler, Settings, Grid, Waves, RotateCcw, Zap } from 'lucide-react';
+import { Home, Plus, Minus, Bath, MessageSquare, Ruler, Settings, Grid, Waves, RotateCcw, Zap, Mountain } from 'lucide-react';
 
 interface AdvancedBuildingFormProps {
   onSubmit: (data: any) => void;
@@ -20,10 +20,96 @@ export const AdvancedBuildingForm = ({
     bedrooms: 3,
     guestToilet: { hasGuestToilet: false, count: 1 },
     landSize: { width: 50, depth: 60, unit: 'feet' },
-    description: ''
+    description: '',
+    soilType: 'not-sure'
   });
 
   const [activeTab, setActiveTab] = useState('basic');
+
+  // Soil types with descriptions
+  const soilTypes = [
+    { 
+      id: 'sandy', 
+      name: 'Sandy Soil', 
+      icon: '🏖️',
+      description: 'Light, coarse, and drains water quickly. Low in nutrients.',
+      foundationAdvice: 'Requires deeper foundations (4-6 ft). Excellent drainage but may shift. Consider pile or raft foundation.',
+      color: 'bg-amber-100',
+      borderColor: 'border-amber-400'
+    },
+    { 
+      id: 'clay', 
+      name: 'Clay Soil', 
+      icon: '🧱',
+      description: 'Heavy, fine particles. Holds water well but drains poorly. Expands when wet, shrinks when dry.',
+      foundationAdvice: 'Requires reinforced foundations (deep strip or raft). Critical to dig below active zone (min 4 ft).',
+      color: 'bg-orange-100',
+      borderColor: 'border-orange-400'
+    },
+    { 
+      id: 'silt', 
+      name: 'Silt Soil', 
+      icon: '🌾',
+      description: 'Smooth and fertile. Retains moisture better than sand. Moderate drainage.',
+      foundationAdvice: 'Good bearing capacity. Standard foundations work well (3-4 ft depth).',
+      color: 'bg-yellow-100',
+      borderColor: 'border-yellow-400'
+    },
+    { 
+      id: 'loamy', 
+      name: 'Loamy Soil', 
+      icon: '🌱',
+      description: 'Perfect mixture of sand, silt, and clay. Very fertile and ideal for construction.',
+      foundationAdvice: 'Excellent for building. Standard shallow foundations (2.5-3.5 ft) are sufficient.',
+      color: 'bg-green-100',
+      borderColor: 'border-green-400'
+    },
+    { 
+      id: 'peaty', 
+      name: 'Peaty Soil', 
+      icon: '🥔',
+      description: 'Rich in organic matter. Dark color. Retains a lot of moisture. Compressible.',
+      foundationAdvice: '⚠️ Challenging. Requires soil improvement or deep piles (6-10 ft). Professional geotech survey recommended.',
+      color: 'bg-brown-100',
+      borderColor: 'border-amber-700'
+    },
+    { 
+      id: 'chalky', 
+      name: 'Chalky Soil', 
+      icon: '🪨',
+      description: 'Alkaline and stony. Often free-draining but low in nutrients.',
+      foundationAdvice: 'Generally stable. Standard foundations (3-4 ft) work. Watch for hollows/fissures.',
+      color: 'bg-gray-100',
+      borderColor: 'border-gray-400'
+    },
+    { 
+      id: 'rocky', 
+      name: 'Rocky Soil', 
+      icon: '⛰️',
+      description: 'Hard, rocky terrain. Excellent load-bearing capacity but difficult to excavate.',
+      foundationAdvice: 'Excellent bearing capacity. Shallow foundations (1-2 ft) often sufficient. Blasting/excavation costs higher.',
+      color: 'bg-slate-100',
+      borderColor: 'border-slate-400'
+    },
+    { 
+      id: 'laterite', 
+      name: 'Laterite Soil', 
+      icon: '🟤',
+      description: 'Reddish, iron-rich soil. Hardens when exposed to air. Common in tropical regions.',
+      foundationAdvice: 'Good bearing capacity when dry. Standard foundations (3-4 ft) work well. Avoid rainy season construction.',
+      color: 'bg-red-100',
+      borderColor: 'border-red-400'
+    },
+    { 
+      id: 'not-sure', 
+      name: 'Not Sure Yet', 
+      icon: '❓',
+      description: 'Unsure about your soil type. We\'ll use standard recommendations.',
+      foundationAdvice: 'Using conservative estimates. Recommend professional soil test before construction.',
+      color: 'bg-gray-50',
+      borderColor: 'border-gray-300'
+    }
+  ];
 
   const updateBedrooms = (delta: number) => {
     setFormData(prev => ({
@@ -42,12 +128,24 @@ export const AdvancedBuildingForm = ({
     }));
   };
 
-  const updateLandSize = (dimension: 'width' | 'depth', value: number) => {
+  // NEW: Update land size with increment/decrement
+  const updateLandSize = (dimension: 'width' | 'depth', delta: number) => {
     setFormData(prev => ({
       ...prev,
       landSize: {
         ...prev.landSize,
-        [dimension]: Math.max(20, Math.min(200, value))
+        [dimension]: Math.max(10, Math.min(200, prev.landSize[dimension] + delta))
+      }
+    }));
+  };
+
+  // NEW: Direct set for land size (from input)
+  const setLandSize = (dimension: 'width' | 'depth', value: number) => {
+    setFormData(prev => ({
+      ...prev,
+      landSize: {
+        ...prev.landSize,
+        [dimension]: Math.max(10, Math.min(200, value))
       }
     }));
   };
@@ -81,10 +179,7 @@ export const AdvancedBuildingForm = ({
   const totalRooms = formData.bedrooms * 2 + 2 + (formData.guestToilet.hasGuestToilet ? 1 : 0);
   const landArea = formData.landSize.width * formData.landSize.depth;
 
-  const layoutStyles = ['open', 'closed', 'split', 'L-shaped', 'U-shaped', 'courtyard'];
-  const floorPlans = ['single story', 'two story', 'split level', 'multi-level'];
-  const roofTypes = ['gable', 'hip', 'flat', 'shed', 'gambrel', 'mansard'];
-  const exteriorFinishes = ['brick', 'wood', 'stucco', 'stone', 'vinyl', 'fiber cement'];
+  const currentSoil = soilTypes.find(s => s.id === formData.soilType) || soilTypes[8];
 
   return (
     <div className="space-y-6">
@@ -188,6 +283,56 @@ export const AdvancedBuildingForm = ({
             </div>
           </div>
 
+          {/* SOIL TYPE SELECTION */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <Mountain className="w-5 h-5 mr-2 text-blue-600" />
+              Soil Type
+            </h3>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              {soilTypes.map((soil) => (
+                <button
+                  key={soil.id}
+                  onClick={() => setFormData(prev => ({ ...prev, soilType: soil.id }))}
+                  className={`p-4 rounded-xl border-2 transition-all text-left ${
+                    formData.soilType === soil.id
+                      ? `${soil.borderColor} bg-blue-50 shadow-md border-2`
+                      : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                  } ${soil.color}`}
+                >
+                  <div className="flex items-start space-x-3">
+                    <div className="text-2xl">{soil.icon}</div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-gray-800 text-sm">{soil.name}</div>
+                      <div className="text-xs text-gray-600 mt-1 line-clamp-2">{soil.description}</div>
+                    </div>
+                    {formData.soilType === soil.id && (
+                      <div className="text-blue-600 text-lg">✓</div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Soil Description and Foundation Advice */}
+            <div className={`p-4 rounded-xl border-2 ${currentSoil.borderColor} ${currentSoil.color} mt-2`}>
+              <div className="flex items-start space-x-3">
+                <div className="text-2xl">{currentSoil.icon}</div>
+                <div className="flex-1">
+                  <div className="font-bold text-gray-800">{currentSoil.name}</div>
+                  <p className="text-sm text-gray-700 mt-1">{currentSoil.description}</p>
+                  <div className="mt-3 pt-2 border-t border-gray-300">
+                    <div className="flex items-start space-x-2">
+                      <span className="text-sm font-semibold text-gray-800">🏗️ Foundation Advice:</span>
+                      <span className="text-sm text-gray-700">{currentSoil.foundationAdvice}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Bedrooms */}
           <div>
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
@@ -265,45 +410,101 @@ export const AdvancedBuildingForm = ({
             )}
           </div>
 
-          {/* Land Size */}
+          {/* LAND SIZE - WITH + AND - BUTTONS */}
           <div>
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
               <Ruler className="w-5 h-5 mr-2 text-blue-600" />
               Land Size
             </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Width</label>
-                <div className="flex items-center space-x-2">
+            
+            {/* Width Control */}
+            <div className="mb-4 p-4 bg-gray-50 rounded-xl">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Width</label>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => updateLandSize('width', -5)}
+                  className="w-12 h-12 bg-white rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center transition-colors shadow-sm"
+                  aria-label="Decrease width by 5"
+                >
+                  <Minus className="w-5 h-5 text-gray-600" />
+                </button>
+                
+                <div className="flex-1 flex items-center space-x-4">
                   <input
-                    type="range"
-                    min="20"
-                    max="200"
+                    type="number"
                     value={formData.landSize.width}
-                    onChange={(e) => updateLandSize('width', parseInt(e.target.value))}
-                    className="flex-1 h-2 bg-gray-200 rounded-lg"
-                  />
-                  <span className="font-mono w-16 text-right">{formData.landSize.width}ft</span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Depth</label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="range"
-                    min="20"
+                    onChange={(e) => setLandSize('width', parseInt(e.target.value) || 50)}
+                    className="w-full px-4 py-3 text-center text-xl font-bold border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    min="10"
                     max="200"
-                    value={formData.landSize.depth}
-                    onChange={(e) => updateLandSize('depth', parseInt(e.target.value))}
-                    className="flex-1 h-2 bg-gray-200 rounded-lg"
                   />
-                  <span className="font-mono w-16 text-right">{formData.landSize.depth}ft</span>
+                  <span className="text-sm font-semibold text-gray-600 min-w-[40px]">ft</span>
                 </div>
+                
+                <button
+                  onClick={() => updateLandSize('width', 5)}
+                  className="w-12 h-12 bg-white rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center transition-colors shadow-sm"
+                  aria-label="Increase width by 5"
+                >
+                  <Plus className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+              <div className="flex justify-between mt-2 text-xs text-gray-500">
+                <span>Min: 10 ft</span>
+                <span>Max: 200 ft</span>
+                <span>Current: {formData.landSize.width} ft</span>
               </div>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Total land area: {landArea} sq ft
-            </p>
+
+            {/* Depth Control */}
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Depth</label>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => updateLandSize('depth', -5)}
+                  className="w-12 h-12 bg-white rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center transition-colors shadow-sm"
+                  aria-label="Decrease depth by 5"
+                >
+                  <Minus className="w-5 h-5 text-gray-600" />
+                </button>
+                
+                <div className="flex-1 flex items-center space-x-4">
+                  <input
+                    type="number"
+                    value={formData.landSize.depth}
+                    onChange={(e) => setLandSize('depth', parseInt(e.target.value) || 60)}
+                    className="w-full px-4 py-3 text-center text-xl font-bold border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    min="10"
+                    max="200"
+                  />
+                  <span className="text-sm font-semibold text-gray-600 min-w-[40px]">ft</span>
+                </div>
+                
+                <button
+                  onClick={() => updateLandSize('depth', 5)}
+                  className="w-12 h-12 bg-white rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center transition-colors shadow-sm"
+                  aria-label="Increase depth by 5"
+                >
+                  <Plus className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+              <div className="flex justify-between mt-2 text-xs text-gray-500">
+                <span>Min: 10 ft</span>
+                <span>Max: 200 ft</span>
+                <span>Current: {formData.landSize.depth} ft</span>
+              </div>
+            </div>
+
+            {/* Land Area Display */}
+            <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-blue-800">Total Land Area:</span>
+                <span className="text-lg font-bold text-blue-900">{landArea.toLocaleString()} sq ft</span>
+              </div>
+              <div className="text-xs text-blue-600 mt-1">
+                {formData.landSize.width} ft × {formData.landSize.depth} ft
+              </div>
+            </div>
           </div>
 
           {/* Project Description */}
@@ -509,9 +710,12 @@ export const AdvancedBuildingForm = ({
               onChange={(e) => updateProfessionalSetting('layoutStyle', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
-              {layoutStyles.map(style => (
-                <option key={style} value={style}>{style.charAt(0).toUpperCase() + style.slice(1)}</option>
-              ))}
+              <option value="open">Open - Connected spaces</option>
+              <option value="closed">Closed - Separate rooms</option>
+              <option value="split">Split - Divided wings</option>
+              <option value="L-shaped">L-Shaped - Two wings at angle</option>
+              <option value="U-shaped">U-Shaped - Courtyard style</option>
+              <option value="courtyard">Courtyard - Central open space</option>
             </select>
             <p className="text-xs text-gray-500 mt-1">
               Open: Connected spaces | Closed: Separate rooms | Split: Divided wings
@@ -525,9 +729,10 @@ export const AdvancedBuildingForm = ({
               onChange={(e) => updateProfessionalSetting('floorPlan', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             >
-              {floorPlans.map(plan => (
-                <option key={plan} value={plan}>{plan.charAt(0).toUpperCase() + plan.slice(1)}</option>
-              ))}
+              <option value="single">Single Story (Ranch)</option>
+              <option value="two">Two Story</option>
+              <option value="split">Split Level</option>
+              <option value="multi">Multi-Level</option>
             </select>
           </div>
         </div>
@@ -597,6 +802,15 @@ export const AdvancedBuildingForm = ({
               <option value="awning">Awning Windows</option>
             </select>
           </div>
+
+          {/* Foundation advice based on soil type */}
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <h4 className="text-sm font-semibold text-blue-800 mb-2">Foundation Recommendation</h4>
+            <p className="text-sm text-blue-700">{currentSoil.foundationAdvice}</p>
+            <p className="text-xs text-blue-600 mt-2">
+              Based on selected soil type: {currentSoil.name}
+            </p>
+          </div>
         </div>
       )}
 
@@ -610,9 +824,12 @@ export const AdvancedBuildingForm = ({
               onChange={(e) => updateProfessionalSetting('roofType', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             >
-              {roofTypes.map(type => (
-                <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
-              ))}
+              <option value="gable">Gable - Classic A-frame</option>
+              <option value="hip">Hip - Sloped on all sides</option>
+              <option value="flat">Flat - Modern minimalist</option>
+              <option value="shed">Shed - Single slope</option>
+              <option value="gambrel">Gambrel - Barn style</option>
+              <option value="mansard">Mansard - French style</option>
             </select>
           </div>
           
@@ -623,22 +840,26 @@ export const AdvancedBuildingForm = ({
               onChange={(e) => updateProfessionalSetting('exteriorFinish', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             >
-              {exteriorFinishes.map(finish => (
-                <option key={finish} value={finish}>{finish.charAt(0).toUpperCase() + finish.slice(1)}</option>
-              ))}
+              <option value="brick">Brick - Traditional durable</option>
+              <option value="wood">Wood - Natural warm look</option>
+              <option value="stucco">Stucco - Mediterranean style</option>
+              <option value="stone">Stone - Premium rustic</option>
+              <option value="vinyl">Vinyl - Low maintenance</option>
+              <option value="fiber">Fiber Cement - Modern durable</option>
             </select>
           </div>
         </div>
       )}
 
-      {/* Summary Section - Always visible */}
+      {/* Summary Section */}
       <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
         <h4 className="font-semibold text-gray-800 mb-2">Project Summary</h4>
         <div className="space-y-1 text-sm">
           <p>🏠 Type: {formData.buildingType}</p>
           <p>🛏️ Bedrooms: {formData.bedrooms} (each with bathroom)</p>
           <p>🚽 Guest Toilet: {formData.guestToilet.hasGuestToilet ? `${formData.guestToilet.count} unit(s)` : 'None'}</p>
-          <p>📏 Land: {formData.landSize.width}ft x {formData.landSize.depth}ft = {landArea} sq ft</p>
+          <p>📏 Land: {formData.landSize.width}ft x {formData.landSize.depth}ft = {landArea.toLocaleString()} sq ft</p>
+          <p>🌱 Soil: {currentSoil.name}</p>
           <p>🚪 Total Rooms: {totalRooms}</p>
           {professionalMode && (
             <p className="text-blue-600 text-xs mt-2 flex items-center">
@@ -649,7 +870,7 @@ export const AdvancedBuildingForm = ({
         </div>
       </div>
 
-      {/* Submit Button - Always at the bottom of the form */}
+      {/* Submit Button */}
       <button
         onClick={handleSubmit}
         className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-lg hover:shadow-lg transition-all flex items-center justify-center space-x-2"
