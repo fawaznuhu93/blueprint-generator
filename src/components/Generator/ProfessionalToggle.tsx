@@ -12,7 +12,6 @@ export const ProfessionalToggle = ({
   isInline = false
 }: ProfessionalToggleProps) => {
   
-  // INLINE MODE - For top-right corner display (THIS IS THE ONLY MODE WE USE)
   if (isInline) {
     return (
       <div className="flex items-center space-x-2 px-3 py-1.5 bg-gray-100 rounded-full shadow-sm">
@@ -38,7 +37,6 @@ export const ProfessionalToggle = ({
     );
   }
 
-  // Default Mode - Simple explanation (when not inline, but we rarely use this)
   return (
     <div className="mb-8 p-6 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200">
       <div className="flex items-center justify-between">

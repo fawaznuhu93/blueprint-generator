@@ -128,24 +128,28 @@ export const AdvancedBuildingForm = ({
     }));
   };
 
-  // NEW: Update land size with increment/decrement
+  // UPDATE: No restrictions on land size
   const updateLandSize = (dimension: 'width' | 'depth', delta: number) => {
-    setFormData(prev => ({
-      ...prev,
-      landSize: {
-        ...prev.landSize,
-        [dimension]: Math.max(10, Math.min(200, prev.landSize[dimension] + delta))
-      }
-    }));
+    setFormData(prev => {
+      const current = prev.landSize[dimension] || 0;
+      const newValue = current + delta;
+      return {
+        ...prev,
+        landSize: {
+          ...prev.landSize,
+          [dimension]: Math.round(newValue * 10) / 10
+        }
+      };
+    });
   };
 
-  // NEW: Direct set for land size (from input)
+  // UPDATE: Direct set with no restrictions
   const setLandSize = (dimension: 'width' | 'depth', value: number) => {
     setFormData(prev => ({
       ...prev,
       landSize: {
         ...prev.landSize,
-        [dimension]: Math.max(10, Math.min(200, value))
+        [dimension]: isNaN(value) ? 0 : Math.round(value * 10) / 10
       }
     }));
   };
@@ -177,13 +181,13 @@ export const AdvancedBuildingForm = ({
   };
 
   const totalRooms = formData.bedrooms * 2 + 2 + (formData.guestToilet.hasGuestToilet ? 1 : 0);
-  const landArea = formData.landSize.width * formData.landSize.depth;
+  const landArea = (formData.landSize.width || 0) * (formData.landSize.depth || 0);
 
   const currentSoil = soilTypes.find(s => s.id === formData.soilType) || soilTypes[8];
 
   return (
     <div className="space-y-6">
-      {/* Professional Mode Indicator at top */}
+      {/* Professional Mode Indicator */}
       {professionalMode && (
         <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
           <div className="flex items-center space-x-2">
@@ -194,7 +198,7 @@ export const AdvancedBuildingForm = ({
         </div>
       )}
 
-      {/* Tab Navigation - ONLY visible in Professional Mode */}
+      {/* Tab Navigation - ONLY in Professional Mode */}
       {professionalMode && (
         <div className="flex flex-wrap border-b border-gray-200">
           <button
@@ -255,10 +259,10 @@ export const AdvancedBuildingForm = ({
         </div>
       )}
 
-      {/* BASIC INFO TAB - Always visible */}
+      {/* BASIC INFO TAB */}
       {(activeTab === 'basic' || !professionalMode) && (
         <div className="space-y-6">
-          {/* Building Type Selection */}
+          {/* Building Type */}
           <div>
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
               <Home className="w-5 h-5 mr-2 text-blue-600" />
@@ -283,7 +287,7 @@ export const AdvancedBuildingForm = ({
             </div>
           </div>
 
-          {/* SOIL TYPE SELECTION */}
+          {/* Soil Type */}
           <div>
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
               <Mountain className="w-5 h-5 mr-2 text-blue-600" />
@@ -315,7 +319,7 @@ export const AdvancedBuildingForm = ({
               ))}
             </div>
 
-            {/* Soil Description and Foundation Advice */}
+            {/* Soil Description */}
             <div className={`p-4 rounded-xl border-2 ${currentSoil.borderColor} ${currentSoil.color} mt-2`}>
               <div className="flex items-start space-x-3">
                 <div className="text-2xl">{currentSoil.icon}</div>
@@ -410,7 +414,7 @@ export const AdvancedBuildingForm = ({
             )}
           </div>
 
-          {/* LAND SIZE - WITH + AND - BUTTONS */}
+          {/* LAND SIZE - WITH + AND - BUTTONS - NO RESTRICTIONS */}
           <div>
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
               <Ruler className="w-5 h-5 mr-2 text-blue-600" />
@@ -423,35 +427,51 @@ export const AdvancedBuildingForm = ({
               <div className="flex items-center space-x-3">
                 <button
                   onClick={() => updateLandSize('width', -5)}
-                  className="w-12 h-12 bg-white rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center transition-colors shadow-sm"
+                  className="w-12 h-12 bg-white rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center transition-colors shadow-sm flex-shrink-0"
                   aria-label="Decrease width by 5"
                 >
                   <Minus className="w-5 h-5 text-gray-600" />
                 </button>
                 
-                <div className="flex-1 flex items-center space-x-4">
+                <div className="flex-1 flex items-center space-x-2">
                   <input
                     type="number"
                     value={formData.landSize.width}
-                    onChange={(e) => setLandSize('width', parseInt(e.target.value) || 50)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setFormData(prev => ({
+                          ...prev,
+                          landSize: { ...prev.landSize, width: 0 }
+                        }));
+                      } else {
+                        const num = parseFloat(val);
+                        if (!isNaN(num)) {
+                          setFormData(prev => ({
+                            ...prev,
+                            landSize: { ...prev.landSize, width: num }
+                          }));
+                        }
+                      }
+                    }}
                     className="w-full px-4 py-3 text-center text-xl font-bold border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    min="10"
-                    max="200"
+                    placeholder="0"
+                    step="any"
+                    min="0"
                   />
-                  <span className="text-sm font-semibold text-gray-600 min-w-[40px]">ft</span>
+                  <span className="text-sm font-semibold text-gray-600 min-w-[32px]">ft</span>
                 </div>
                 
                 <button
                   onClick={() => updateLandSize('width', 5)}
-                  className="w-12 h-12 bg-white rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center transition-colors shadow-sm"
+                  className="w-12 h-12 bg-white rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center transition-colors shadow-sm flex-shrink-0"
                   aria-label="Increase width by 5"
                 >
                   <Plus className="w-5 h-5 text-gray-600" />
                 </button>
               </div>
               <div className="flex justify-between mt-2 text-xs text-gray-500">
-                <span>Min: 10 ft</span>
-                <span>Max: 200 ft</span>
+                <span>Use buttons or type any number</span>
                 <span>Current: {formData.landSize.width} ft</span>
               </div>
             </div>
@@ -462,35 +482,51 @@ export const AdvancedBuildingForm = ({
               <div className="flex items-center space-x-3">
                 <button
                   onClick={() => updateLandSize('depth', -5)}
-                  className="w-12 h-12 bg-white rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center transition-colors shadow-sm"
+                  className="w-12 h-12 bg-white rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center transition-colors shadow-sm flex-shrink-0"
                   aria-label="Decrease depth by 5"
                 >
                   <Minus className="w-5 h-5 text-gray-600" />
                 </button>
                 
-                <div className="flex-1 flex items-center space-x-4">
+                <div className="flex-1 flex items-center space-x-2">
                   <input
                     type="number"
                     value={formData.landSize.depth}
-                    onChange={(e) => setLandSize('depth', parseInt(e.target.value) || 60)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setFormData(prev => ({
+                          ...prev,
+                          landSize: { ...prev.landSize, depth: 0 }
+                        }));
+                      } else {
+                        const num = parseFloat(val);
+                        if (!isNaN(num)) {
+                          setFormData(prev => ({
+                            ...prev,
+                            landSize: { ...prev.landSize, depth: num }
+                          }));
+                        }
+                      }
+                    }}
                     className="w-full px-4 py-3 text-center text-xl font-bold border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    min="10"
-                    max="200"
+                    placeholder="0"
+                    step="any"
+                    min="0"
                   />
-                  <span className="text-sm font-semibold text-gray-600 min-w-[40px]">ft</span>
+                  <span className="text-sm font-semibold text-gray-600 min-w-[32px]">ft</span>
                 </div>
                 
                 <button
                   onClick={() => updateLandSize('depth', 5)}
-                  className="w-12 h-12 bg-white rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center transition-colors shadow-sm"
+                  className="w-12 h-12 bg-white rounded-xl border border-gray-300 hover:bg-gray-100 flex items-center justify-center transition-colors shadow-sm flex-shrink-0"
                   aria-label="Increase depth by 5"
                 >
                   <Plus className="w-5 h-5 text-gray-600" />
                 </button>
               </div>
               <div className="flex justify-between mt-2 text-xs text-gray-500">
-                <span>Min: 10 ft</span>
-                <span>Max: 200 ft</span>
+                <span>Use buttons or type any number</span>
                 <span>Current: {formData.landSize.depth} ft</span>
               </div>
             </div>
@@ -499,10 +535,12 @@ export const AdvancedBuildingForm = ({
             <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-blue-800">Total Land Area:</span>
-                <span className="text-lg font-bold text-blue-900">{landArea.toLocaleString()} sq ft</span>
+                <span className="text-lg font-bold text-blue-900">
+                  {landArea.toLocaleString()} sq ft
+                </span>
               </div>
               <div className="text-xs text-blue-600 mt-1">
-                {formData.landSize.width} ft × {formData.landSize.depth} ft
+                {formData.landSize.width || 0} ft × {formData.landSize.depth || 0} ft
               </div>
             </div>
           </div>
@@ -518,13 +556,13 @@ export const AdvancedBuildingForm = ({
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
               rows={4}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              placeholder="Example: Modern open-concept home with large windows for natural light. Prefer an L-shaped layout with the master bedroom separated..."
+              placeholder="Example: Modern open-concept home with large windows for natural light..."
             />
           </div>
         </div>
       )}
 
-      {/* ROOM SIZES TAB - ONLY in Professional Mode */}
+      {/* PROFESSIONAL MODE TABS - Room Sizes */}
       {professionalMode && activeTab === 'rooms' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center mb-3">
@@ -700,7 +738,7 @@ export const AdvancedBuildingForm = ({
         </div>
       )}
 
-      {/* LAYOUT TAB - ONLY in Professional Mode */}
+      {/* LAYOUT TAB */}
       {professionalMode && activeTab === 'layout' && (
         <div className="space-y-4">
           <div>
@@ -717,9 +755,6 @@ export const AdvancedBuildingForm = ({
               <option value="U-shaped">U-Shaped - Courtyard style</option>
               <option value="courtyard">Courtyard - Central open space</option>
             </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Open: Connected spaces | Closed: Separate rooms | Split: Divided wings
-            </p>
           </div>
           
           <div>
@@ -738,7 +773,7 @@ export const AdvancedBuildingForm = ({
         </div>
       )}
 
-      {/* STRUCTURAL TAB - ONLY in Professional Mode */}
+      {/* STRUCTURAL TAB */}
       {professionalMode && activeTab === 'structural' && (
         <div className="space-y-4">
           <div>
@@ -754,7 +789,6 @@ export const AdvancedBuildingForm = ({
               />
               <span className="font-mono w-12 text-center">{professionalCustomizations?.wallThickness || 6}"</span>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Standard: 6" | Heavy: 8-12" for load-bearing</p>
           </div>
           
           <div>
@@ -770,7 +804,6 @@ export const AdvancedBuildingForm = ({
               />
               <span className="font-mono w-12 text-center">{professionalCustomizations?.ceilingHeight || 9}'</span>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Standard: 9' | Vaulted: 12-14' for grand rooms</p>
           </div>
           
           <div>
@@ -814,7 +847,7 @@ export const AdvancedBuildingForm = ({
         </div>
       )}
 
-      {/* EXTERIOR TAB - ONLY in Professional Mode */}
+      {/* EXTERIOR TAB */}
       {professionalMode && activeTab === 'exterior' && (
         <div className="space-y-4">
           <div>

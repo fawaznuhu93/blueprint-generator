@@ -52,11 +52,8 @@ export function GeneratorPage() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   
-  // Refs for scrolling to blueprint
   const blueprintRef = useRef<HTMLDivElement>(null);
-  const formRef = useRef<HTMLDivElement>(null);
   
-  // Professional customizations state
   const [professionalCustomizations, setProfessionalCustomizations] = useState({
     roomSizes: {},
     wallThickness: 6,
@@ -112,7 +109,7 @@ export function GeneratorPage() {
       trackBlueprintGenerated(data.buildingType, country);
       setStep(3);
       
-      // 🔥 AUTO-SCROLL TO BLUEPRINT AFTER GENERATION
+      // Auto-scroll to blueprint
       setTimeout(() => {
         if (blueprintRef.current) {
           blueprintRef.current.scrollIntoView({ 
@@ -189,8 +186,7 @@ export function GeneratorPage() {
       <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
         <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 lg:gap-8">
           {/* Left Column - Form */}
-          <div className="w-full lg:w-1/3 space-y-4 sm:space-y-6" ref={formRef}>
-            {/* Main Building Form */}
+          <div className="w-full lg:w-1/3 space-y-4 sm:space-y-6">
             <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 md:p-6 shadow-sm">
               <AdvancedBuildingForm 
                 onSubmit={handleBuildingSubmit}
@@ -200,7 +196,6 @@ export function GeneratorPage() {
               />
             </div>
             
-            {/* Generate Button - Shown after form is filled */}
             {buildingData && (
               <button
                 onClick={handleGenerateClick}
@@ -221,7 +216,6 @@ export function GeneratorPage() {
               </button>
             )}
             
-            {/* Export Options - After generation */}
             {step === 3 && blueprint && (
               <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 md:p-6 shadow-sm">
                 <h3 className="font-semibold text-gray-800 mb-3 sm:mb-4 text-sm sm:text-base">Export Options</h3>
@@ -267,7 +261,6 @@ export function GeneratorPage() {
           
           {/* Right Column - Blueprint Display */}
           <div className="w-full lg:w-2/3 space-y-4 sm:space-y-6">
-            {/* Scroll target ref for blueprint */}
             <div ref={blueprintRef} className="scroll-mt-20">
               {apiError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
