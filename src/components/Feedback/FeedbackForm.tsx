@@ -1,38 +1,38 @@
 import { useState } from 'react';
 import { MessageSquare, Star, Send } from 'lucide-react';
 
-// Extended country list for feedback form
-const countryOptions = [
-  'United States', 'Nigeria', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France',
-  'India', 'China', 'Japan', 'Brazil', 'Mexico', 'South Africa', 'Kenya', 'Ghana',
-  'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'Libya', 'Sudan', 'Ethiopia', 'Somalia',
-  'Saudi Arabia', 'UAE', 'Qatar', 'Kuwait', 'Bahrain', 'Oman', 'Jordan', 'Lebanon',
-  'Israel', 'Palestine', 'Turkey', 'Iran', 'Iraq', 'Syria', 'Yemen', 'Afghanistan',
-  'Pakistan', 'Bangladesh', 'Sri Lanka', 'Nepal', 'Bhutan', 'Myanmar', 'Thailand',
-  'Vietnam', 'Laos', 'Cambodia', 'Malaysia', 'Singapore', 'Indonesia', 'Philippines',
-  'South Korea', 'North Korea', 'Mongolia', 'Taiwan', 'Hong Kong', 'Macau',
-  'Russia', 'Ukraine', 'Poland', 'Czech Republic', 'Slovakia', 'Hungary', 'Romania',
-  'Bulgaria', 'Serbia', 'Croatia', 'Bosnia', 'Slovenia', 'Albania', 'North Macedonia',
-  'Greece', 'Cyprus', 'Malta', 'Italy', 'Spain', 'Portugal', 'Andorra', 'Monaco',
-  'Switzerland', 'Austria', 'Belgium', 'Netherlands', 'Luxembourg', 'Ireland', 'Iceland',
-  'Denmark', 'Sweden', 'Norway', 'Finland', 'Estonia', 'Latvia', 'Lithuania', 'Belarus',
-  'Moldova', 'Georgia', 'Armenia', 'Azerbaijan', 'Kazakhstan', 'Uzbekistan', 'Turkmenistan',
-  'Kyrgyzstan', 'Tajikistan', 'Mongolia', 'Australia', 'New Zealand', 'Papua New Guinea',
-  'Fiji', 'Samoa', 'Tonga', 'Vanuatu', 'Solomon Islands', 'Mauritius', 'Seychelles',
-  'Maldives', 'Indonesia', 'Timor-Leste', 'Brunei', 'Myanmar', 'Laos', 'Cambodia',
-  'Argentina', 'Bolivia', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Guyana', 'Paraguay',
-  'Peru', 'Suriname', 'Uruguay', 'Venezuela', 'French Guiana', 'Falkland Islands',
-  'Bahamas', 'Barbados', 'Belize', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic',
-  'El Salvador', 'Grenada', 'Guatemala', 'Haiti', 'Honduras', 'Jamaica', 'Nicaragua',
-  'Panama', 'Puerto Rico', 'Saint Kitts', 'Saint Lucia', 'Saint Vincent', 'Trinidad',
-  'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cameroon',
-  'Central African Republic', 'Chad', 'Comoros', 'Congo', 'Djibouti', 'Equatorial Guinea',
-  'Eritrea', 'Eswatini', 'Gabon', 'Gambia', 'Guinea', 'Guinea-Bissau', 'Ivory Coast',
-  'Lesotho', 'Liberia', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius',
-  'Mozambique', 'Namibia', 'Niger', 'Rwanda', 'Sao Tome', 'Senegal', 'Seychelles',
-  'Sierra Leone', 'Somalia', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia',
-  'Uganda', 'Zambia', 'Zimbabwe'
-].sort();
+// Complete deduplicated country list
+const countryOptions = Array.from(new Set([
+  'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Argentina', 'Armenia',
+  'Australia', 'Austria', 'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados',
+  'Belarus', 'Belgium', 'Belize', 'Benin', 'Bhutan', 'Bolivia', 'Bosnia and Herzegovina',
+  'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Cambodia',
+  'Cameroon', 'Canada', 'Cape Verde', 'Central African Republic', 'Chad', 'Chile',
+  'China', 'Colombia', 'Comoros', 'Congo', 'Costa Rica', 'Croatia', 'Cuba', 'Cyprus',
+  'Czech Republic', 'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic', 'Ecuador',
+  'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Eswatini',
+  'Ethiopia', 'Fiji', 'Finland', 'France', 'Gabon', 'Gambia', 'Georgia', 'Germany',
+  'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 'Guinea-Bissau', 'Guyana',
+  'Haiti', 'Honduras', 'Hong Kong', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran',
+  'Iraq', 'Ireland', 'Israel', 'Italy', 'Ivory Coast', 'Jamaica', 'Japan', 'Jordan',
+  'Kazakhstan', 'Kenya', 'Kuwait', 'Kyrgyzstan', 'Laos', 'Latvia', 'Lebanon', 'Lesotho',
+  'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Madagascar', 'Malawi',
+  'Malaysia', 'Maldives', 'Mali', 'Malta', 'Mauritania', 'Mauritius', 'Mexico', 'Moldova',
+  'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique', 'Myanmar', 'Namibia',
+  'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'North Korea',
+  'North Macedonia', 'Norway', 'Oman', 'Pakistan', 'Palestine', 'Panama',
+  'Papua New Guinea', 'Paraguay', 'Peru', 'Philippines', 'Poland', 'Portugal', 'Qatar',
+  'Romania', 'Russia', 'Rwanda', 'Saint Kitts and Nevis', 'Saint Lucia',
+  'Saint Vincent and the Grenadines', 'Samoa', 'San Marino', 'Sao Tome and Principe',
+  'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore',
+  'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'South Africa', 'South Korea',
+  'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden', 'Switzerland',
+  'Syria', 'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 'Timor-Leste', 'Togo', 'Tonga',
+  'Trinidad and Tobago', 'Tunisia', 'Turkey', 'Turkmenistan', 'Tuvalu', 'Uganda',
+  'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States', 'Uruguay',
+  'Uzbekistan', 'Vanuatu', 'Vatican City', 'Venezuela', 'Vietnam', 'Yemen', 'Zambia',
+  'Zimbabwe'
+])).sort();
 
 export const FeedbackForm = () => {
   const [formData, setFormData] = useState({
@@ -88,14 +88,14 @@ export const FeedbackForm = () => {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
       <div className="flex items-center space-x-3 mb-6">
-        <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+        <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
           <MessageSquare className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h3 className="text-xl font-bold text-gray-900">Help Us Improve</h3>
-          <p className="text-gray-600">Your feedback helps shape the future of Blueprint Generator</p>
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900">Help Us Improve</h3>
+          <p className="text-xs sm:text-sm text-gray-600">Your feedback shapes the future of Blueprint Generator</p>
         </div>
       </div>
       

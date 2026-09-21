@@ -1,5 +1,5 @@
-// Blueprint Generator Type Definitions
-// This file exports all types needed for the application
+// Shared Blueprint Types
+// Single source of truth for all blueprint types
 
 export type RoomType =
   | 'living'
@@ -19,48 +19,56 @@ export type RoomType =
 export interface Room {
   id: string;
   name: string;
-  type: RoomType;
+  type: string;
   width: number;
   depth: number;
   area: number;
   position: { x: number; y: number };
   color: string;
   doors: Array<{
-    wall: 'north' | 'south' | 'east' | 'west';
+    wall: 'north' | 'south' | 'east' | 'west' | string;
     position: number;
     width: number;
   }>;
   windows: Array<{
-    wall: 'north' | 'south' | 'east' | 'west';
+    wall: 'north' | 'south' | 'east' | 'west' | string;
     position: number;
     width: number;
   }>;
 }
 
 export interface BlueprintSpec {
-  buildingType: 'house' | 'shop' | 'office' | 'restaurant' | 'bungalow' | 'duplex' | 'apartment' | 'villa' | 'townhouse' | 'mansion';
+  buildingType: string;
   country: string;
   totalArea: number;
   dimensions: { width: number; depth: number };
   rooms: Room[];
-  layout: 'linear' | 'central' | 'clustered' | 'open' | 'split' | 'compact' | 'spacious' | 'vertical' | 'estate';
+  layout: string;
   unit: 'feet' | 'meters';
   createdAt: string;
 }
 
-export interface UserInput {
-  buildingType: 'house' | 'shop' | 'office' | 'restaurant' | 'bungalow' | 'duplex' | 'apartment' | 'villa' | 'townhouse' | 'mansion';
-  country: string;
-  professionalMode: boolean;
-  customDimensions?: Record<string, { width: number; depth: number }>;
+export interface BuildingData {
+  buildingType: string;
+  country?: string;
+  bedrooms?: number;
   roomCount?: {
     bedrooms: number;
-    bathrooms: number;
-    living: number;
-    kitchen: number;
-    office: number;
+    bathrooms?: number;
+    living?: number;
+    kitchen?: number;
+    office?: number;
   };
+  guestToilet?: {
+    hasGuestToilet: boolean;
+    count: number;
+  };
+  landSize?: {
+    width: number;
+    depth: number;
+    unit?: string;
+  };
+  description?: string;
+  soilType?: string;
+  nationality?: string;
 }
-
-// Default export for easier importing
-export default { BlueprintSpec, Room, UserInput, RoomType };
