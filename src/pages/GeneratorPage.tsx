@@ -2,7 +2,6 @@ import { useState, useRef } from 'react';
 import { AdvancedBuildingForm } from '../components/Generator/AdvancedBuildingForm';
 import { ProfessionalToggle } from '../components/Generator/ProfessionalToggle';
 import { BlueprintViewer } from '../components/Blueprint/BlueprintViewer';
-import { AIImageViewer } from '../components/Blueprint/AIImageViewer';
 import { FeedbackForm } from '../components/Feedback/FeedbackForm';
 import { generateBlueprintWithAI } from '../utils/aiService';
 import { BlueprintEngine } from '../utils/blueprintEngine';
@@ -27,7 +26,6 @@ export function GeneratorPage() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'technical' | 'ai-image'>('technical');
 
   const blueprintRef = useRef<HTMLDivElement>(null);
 
@@ -292,39 +290,10 @@ export function GeneratorPage() {
                 <div className="bg-white rounded-xl border border-gray-200 p-8 sm:p-12 text-center">
                   <Loader2 className="w-12 h-12 sm:w-16 sm:h-16 text-blue-600 animate-spin mx-auto mb-4" />
                   <h3 className="text-base sm:text-lg font-semibold text-gray-800">Generating Your Blueprint...</h3>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2">AI is creating your professional architectural plan.</p>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-2">Creating your professional architectural plan.</p>
                 </div>
               ) : blueprint ? (
-                <div className="space-y-4">
-                  <div className="flex bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
-                    <button
-                      onClick={() => setViewMode('technical')}
-                      className={`flex-1 py-2 px-3 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
-                        viewMode === 'technical'
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      📐 Technical Blueprint
-                    </button>
-                    <button
-                      onClick={() => setViewMode('ai-image')}
-                      className={`flex-1 py-2 px-3 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
-                        viewMode === 'ai-image'
-                          ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      🎨 AI-Generated Image
-                    </button>
-                  </div>
-
-                  {viewMode === 'technical' ? (
-                    <BlueprintViewer blueprint={blueprint} onExportPDF={handleExportPDF} />
-                  ) : (
-                    <AIImageViewer buildingData={buildingData} country={country} />
-                  )}
-                </div>
+                <BlueprintViewer blueprint={blueprint} onExportPDF={handleExportPDF} />
               ) : (
                 <div className="bg-white rounded-xl border border-gray-200 p-8 sm:p-12 text-center">
                   <div className="flex justify-center mb-4 sm:mb-6">
@@ -368,7 +337,7 @@ export function GeneratorPage() {
                         {buildingData?.buildingType?.toUpperCase()} • {blueprint.totalArea.toFixed(0)} sq ft • {blueprint.rooms.length} rooms
                       </p>
                       <p className="mt-1 text-xs text-green-600">
-                        📱 Switch between Technical and AI-Image views above.
+                        Scroll down to view the full blueprint. Pinch to zoom on mobile.
                       </p>
                     </div>
                   </div>
